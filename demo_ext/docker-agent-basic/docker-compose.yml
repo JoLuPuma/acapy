@@ -1,0 +1,67 @@
+version: '3'
+volumes:
+  acapy-vol-wallet:
+services:
+  ngrok-agent:
+    image: ngrok/ngrok
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    ports:
+      - 4040:4040 
+    command: http acapy-agent:3000 --log stdout
+    networks:
+      - acapy_default
+  
+  db:
+    image: postgres:15
+    # restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRESQL_ADMIN_PASSWORD:-development}
+    ports: # Uncomment to access postgres outside of containers
+      - "5432:5432"
+    networks:
+      - acapy_default
+    volumes:
+      - acapy-vol-wallet:/var/lib/pgsql/data:z
+    healthcheck:
+      test: pg_isready -U postgres
+      interval: 3s
+      timeout: 3s
+      retries: 5
+  #*************************************************************
+  # acapy-redis_queue: aca-py that produces redis events. *
+  #*************************************************************
+  acapy-agent:
+    image: acapy-agent
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NGROK_NAME=ngrok-agent
+      - POSTGRESQL_HOST=${POSTGRESQL_HOST:-db}
+      - POSTGRESQL_PORT=${POSTGRESQL_PORT:-5432}
+      - ACAPY_WALLET_STORAGE_CONFIG={"url":"${POSTGRESQL_HOST:-db}:${POSTGRESQL_PORT:-5432}","wallet_scheme":"DatabasePerWallet"}
+      - ACAPY_WALLET_STORAGE_CREDS={"account":"${POSTGRESQL_USER:-postgres}","password":"${POSTGRESQL_PASSWORD:-development}","admin_account":"${POSTGRESQL_ADMIN_USER:-postgres}","admin_password":"${POSTGRESQL_ADMIN_PASSWORD:-development}"}
+      - AGENT_ARG_FILE=${AGENT_ARG_FILE:-./configs/default.yml}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    ports:
+      - "3001:3001"
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy 
+    entrypoint: /bin/bash
+    command: [
+        "-c",
+        "sleep 5; \ 
+        ./start.sh"
+      ]
+    volumes:
+      - ./start.sh:/home/aries/start.sh
+    networks:
+      - acapy_default
+
+networks:
+    acapy_default:
+      #external: true
+      name: ${NETWORK_NAME}

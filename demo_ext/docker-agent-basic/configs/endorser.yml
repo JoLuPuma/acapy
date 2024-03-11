@@ -1,0 +1,54 @@
+label: Endorser
+
+auto-provision: true
+emit-new-didcomm-prefix: true
+wallet-type: askar
+wallet-storage-type: postgres_storage
+wallet-name: acapy-demo
+
+
+# ACA-Py secrets
+wallet-key: acapy-key
+seed: pier0000000000000000000000000000
+#DID: R1SbxVKLcBRSHj9s55MAGf
+#Verkey: E5vpUUewzBPjvprqRdgdhnfL3ECToeqaHHmxt3TBsK4n
+
+
+# Admin
+admin: [0.0.0.0, 3001]
+admin-insecure-mode: true
+
+# Admin secrets
+#admin-api-key: key-to-change
+
+
+# Transport
+inbound-transport:
+  - [http, 0.0.0.0, 3000]
+  
+outbound-transport: http
+
+endpoint:
+  - http://localhost:3000
+
+# Ledger
+#no-ledger: true
+genesis-url: http://test.bcovrin.vonx.io/genesis
+
+# Connections
+debug-connections: true
+auto-accept-invites: true
+auto-accept-requests: true
+auto-ping-connection: true
+auto-respond-messages: true
+public-invites: true
+monitor-ping: true
+
+#Endorser
+#auto-endorse-transactions: true
+#endorser-protocol-role: endorser
+
+#Revocation
+#tails-server-base-url:
+
+#log-level: info

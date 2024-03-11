@@ -1,0 +1,4 @@
+NETWORK_NAME=redis_cluster
+REDIS_PASSWORD=test1234
+LOG_LEVEL=INFO
+AGENT_ARG_FILE=./configs/default-it-ot-redis.yml
