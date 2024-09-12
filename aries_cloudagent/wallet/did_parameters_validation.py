@@ -1,9 +1,11 @@
 """Tooling to validate DID creation parameters."""
 
+from hashlib import sha256
 from typing import Optional
 
 from aries_cloudagent.did.did_key import DIDKey
 from aries_cloudagent.wallet.did_method import (
+    INDY,
     KEY,
     SOV,
     DIDMethod,
@@ -60,5 +62,7 @@ class DIDParametersValidation:
             return DIDKey.from_public_key(verkey, key_type).did
         elif method == SOV:
             return bytes_to_b58(verkey[:16]) if not did else did
+        elif method == INDY:
+            return bytes_to_b58(((sha256(verkey)).digest())[:16]) if not did else did
 
         return did
