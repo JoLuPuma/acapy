@@ -1,0 +1,45 @@
+
+# All settings for mediator agent (with no plugin)
+
+label: Service de médiation
+# Mediator does not use a ledger
+no-ledger: true
+
+# Wallet
+auto-provision: true #It must be false in production
+wallet-type: askar-anoncreds
+wallet-name: MediatorDBName
+wallet-key: change-me-key
+wallet-storage-type: postgres_storage
+#wallet-storage-config: '{"url":"localhost:5432", "wallet_scheme": "DatabasePerWallet"}'
+#wallet-storage-creds: '{"account":"acapy", "password":"acapy", "admin_account":"acapy", "admin_password":"acapy"}'
+
+# Mediation
+open-mediation: true
+enable-undelivered-queue: true
+
+# Connections
+auto-accept-invites: true
+auto-accept-requests: true
+auto-ping-connection: true
+debug-connections: false
+emit-new-didcomm-prefix: true
+
+# Print an admin invite
+connections-invite: true
+invite-label: "Médiateur"
+invite-multi-use: true
+
+# Transport
+inbound-transport: 
+  - [http, 0.0.0.0, 3000]
+  - [ws, 0.0.0.0, 3001]
+
+outbound-transport: ws
+outbound-transport: http
+#endpoint: http://localhost:3000 ws://localhost:3000
+
+# Admin-Swagger
+admin: [0.0.0.0, 3002]
+admin-api-key: change-me-api-key
+admin-insecure-mode: false
