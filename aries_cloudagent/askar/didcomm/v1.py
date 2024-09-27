@@ -3,16 +3,11 @@
 from collections import OrderedDict
 from typing import Optional, Sequence, Tuple
 
-from aries_askar import (
-    crypto_box,
-    Key,
-    KeyAlg,
-    Session,
-)
+from aries_askar import Key, KeyAlg, Session, crypto_box
 from aries_askar.bindings import key_get_secret_bytes
 from marshmallow import ValidationError
 
-from ...utils.jwe import b64url, JweEnvelope, JweRecipient
+from ...utils.jwe import JweEnvelope, JweRecipient, b64url
 from ...wallet.base import WalletError
 from ...wallet.crypto import extract_pack_recipients
 from ...wallet.util import b58_to_bytes, bytes_to_b58
@@ -121,9 +116,9 @@ def _extract_payload_key(sender_cek: dict, recip_secret: Key) -> Tuple[bytes, st
     recip_x = recip_secret.convert_key(KeyAlg.X25519)
 
     if sender_cek["nonce"] and sender_cek["sender"]:
-        sender_vk = crypto_box.crypto_box_seal_open(
-            recip_x, sender_cek["sender"]
-        ).decode("utf-8")
+        sender_vk = crypto_box.crypto_box_seal_open(recip_x, sender_cek["sender"]).decode(
+            "utf-8"
+        )
         sender_x = Key.from_public_bytes(
             KeyAlg.ED25519, b58_to_bytes(sender_vk)
         ).convert_key(KeyAlg.X25519)

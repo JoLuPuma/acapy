@@ -5,16 +5,7 @@ import json
 import logging
 import os
 from enum import Enum
-from typing import (
-    Any,
-    Callable,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import Any, Callable, List, Mapping, Optional, Sequence, Tuple, Union
 
 import yaml
 from configargparse import ArgumentParser
@@ -89,15 +80,13 @@ class VersionUpgradeConfig:
                 tagged_config_dict[config_id] = {}
                 if "resave_records" in provided_config:
                     if provided_config.get("resave_records").get("base_record_path"):
-                        recs_list = recs_list + provided_config.get(
-                            "resave_records"
-                        ).get("base_record_path")
-                    if provided_config.get("resave_records").get(
-                        "base_exch_record_path"
-                    ):
-                        recs_list = recs_list + provided_config.get(
-                            "resave_records"
-                        ).get("base_exch_record_path")
+                        recs_list = recs_list + provided_config.get("resave_records").get(
+                            "base_record_path"
+                        )
+                    if provided_config.get("resave_records").get("base_exch_record_path"):
+                        recs_list = recs_list + provided_config.get("resave_records").get(
+                            "base_exch_record_path"
+                        )
                 tagged_config_dict[config_id]["resave_records"] = recs_list
                 config_key_set = set(provided_config.keys())
                 try:
@@ -572,7 +561,7 @@ async def update_existing_records(profile: Profile):
 
 ##########################################################
 # Fix for ACA-Py Issue #2485
-# issuance_type attribue in IssuerRevRegRecord was removed
+# issuance_type attribute in IssuerRevRegRecord was removed
 # in 0.5.3 version. IssuerRevRegRecord created previously
 # will need
 ##########################################################

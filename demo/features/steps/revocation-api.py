@@ -1,4 +1,3 @@
-from behave import given, when, then
 import json
 import os
 
@@ -7,7 +6,11 @@ from bdd_support.agent_backchannel_client import (
     agent_container_POST,
     async_sleep,
 )
-from runners.agent_container import AgentContainer
+from behave import given, then
+
+
+def is_anoncreds(agent):
+    return agent["agent"].wallet_type == "askar-anoncreds"
 
 
 BDD_EXTRA_AGENT_ARGS = os.getenv("BDD_EXTRA_AGENT_ARGS")
@@ -28,20 +31,24 @@ def step_impl(context, count=None):
 @then('"{issuer}" lists revocation registries {count}')
 def step_impl(context, issuer, count=None):
     agent = context.active_agents[issuer]
+
+    if not is_anoncreds(agent):
+        endpoint = "/revocation/registries/created"
+    else:
+        endpoint = "/anoncreds/revocation/registries"
+
     async_sleep(5.0)
-    created_response = agent_container_GET(
-        agent["agent"], f"/revocation/registries/created"
-    )
+    created_response = agent_container_GET(agent["agent"], endpoint)
     full_response = agent_container_GET(
-        agent["agent"], f"/revocation/registries/created", params={"state": "full"}
+        agent["agent"], endpoint, params={"state": "full"}
     )
     decommissioned_response = agent_container_GET(
         agent["agent"],
-        f"/revocation/registries/created",
+        endpoint,
         params={"state": "decommissioned"},
     )
     finished_response = agent_container_GET(
-        agent["agent"], f"/revocation/registries/created", params={"state": "finished"}
+        agent["agent"], endpoint, params={"state": "finished"}
     )
     async_sleep(4.0)
     if count:
@@ -49,9 +56,7 @@ def step_impl(context, issuer, count=None):
             f"\nlists revocation registries ({count} creds) = = = = = = = = = = = = = ="
         )
     else:
-        print(
-            "\nlists revocation registries = = = = = = = = = = = = = = = = = = = = = ="
-        )
+        print("\nlists revocation registries = = = = = = = = = = = = = = = = = = = = = =")
     print("\ncreated_response: ", len(created_response["rev_reg_ids"]))
     print("full_response: ", len(full_response["rev_reg_ids"]))
     print("decommissioned_response:", len(decommissioned_response["rev_reg_ids"]))
@@ -63,22 +68,26 @@ def step_impl(context, issuer, count=None):
 @then('"{issuer}" rotates revocation registries')
 def step_impl(context, issuer):
     agent = context.active_agents[issuer]
+
+    if not is_anoncreds(agent):
+        endpoint = "/revocation/active-registry/"
+    else:
+        endpoint = "/anoncreds/revocation/active-registry/"
+
     cred_def_id = context.cred_def_id
     original_active_response = agent_container_GET(
-        agent["agent"], f"/revocation/active-registry/{cred_def_id}"
+        agent["agent"], f"{endpoint}{cred_def_id}"
     )
     print("original_active_response:", json.dumps(original_active_response))
 
     rotate_response = agent_container_POST(
         agent["agent"],
-        f"/revocation/active-registry/{cred_def_id}/rotate",
+        f"{endpoint}{cred_def_id}/rotate",
         data={},
     )
     print("rotate_response:", json.dumps(rotate_response))
 
     async_sleep(10.0)
 
-    active_response = agent_container_GET(
-        agent["agent"], f"/revocation/active-registry/{cred_def_id}"
-    )
+    active_response = agent_container_GET(agent["agent"], f"{endpoint}{cred_def_id}")
     print("active_response:", json.dumps(active_response))

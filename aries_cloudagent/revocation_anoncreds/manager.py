@@ -14,10 +14,7 @@ from ..protocols.issue_credential.v2_0.models.cred_ex_record import V20CredExRec
 from ..protocols.revocation_notification.v1_0.models.rev_notification_record import (
     RevNotificationRecord,
 )
-from ..revocation.util import (
-    notify_pending_cleared_event,
-    notify_revocation_published_event,
-)
+from ..revocation.util import notify_pending_cleared_event
 from ..storage.error import StorageNotFoundError
 from .models.issuer_cred_rev_record import IssuerCredRevRecord
 
@@ -33,7 +30,7 @@ class RevocationManager:
         """Initialize a RevocationManager.
 
         Args:
-            context: The context for this revocation manager
+            profile: The profile instance for this revocation manager
         """
         self._profile = profile
         self._logger = logging.getLogger(__name__)
@@ -54,9 +51,28 @@ class RevocationManager:
         Optionally, publish the corresponding revocation registry delta to the ledger.
 
         Args:
-            cred_ex_id: credential exchange identifier
-            publish: whether to publish the resulting revocation registry delta,
-                along with any revocations pending against it
+            cred_ex_id (str): The credential exchange identifier.
+            publish (bool, optional): Whether to publish the resulting revocation
+                registry delta, along with any revocations pending against it.
+                Defaults to False.
+            notify (bool, optional): Whether to notify the issuer of the revocation.
+                Defaults to False.
+            notify_version (str, optional): The version of the revocation notification to
+                use. Defaults to None.
+            thread_id (str, optional): The thread identifier for the revocation.
+                Defaults to None.
+            connection_id (str, optional): The connection identifier for the revocation.
+                Defaults to None.
+            comment (str, optional): A comment for the revocation. Defaults to None.
+            options (dict, optional): Additional options for the revocation. Defaults to
+                None.
+
+        Raises:
+            RevocationManagerError: If no issuer credential revocation record is found
+                for the given credential exchange id.
+
+        Returns:
+            dict: The result of the credential revocation operation.
 
         """
         try:
@@ -100,10 +116,26 @@ class RevocationManager:
         Optionally, publish the corresponding revocation registry delta to the ledger.
 
         Args:
-            rev_reg_id: revocation registry id
-            cred_rev_id: credential revocation id
-            publish: whether to publish the resulting revocation registry delta,
-                along with any revocations pending against it
+            rev_reg_id (str): The revocation registry id.
+            cred_rev_id (str): The credential revocation id.
+            publish (bool, optional): Whether to publish the resulting revocation
+                registry delta, along with any revocations pending against it.
+                Defaults to False.
+            notify (bool, optional): Whether to send a revocation notification.
+                Defaults to False.
+            notify_version (str, optional): The version of the revocation notification.
+                Defaults to None.
+            thread_id (str, optional): The thread id for the revocation notification.
+                Defaults to None.
+            connection_id (str, optional): The connection id for the revocation
+                notification. Defaults to None.
+            comment (str, optional): A comment for the revocation notification.
+                Defaults to None.
+            options (dict, optional): Additional options for revocation. Defaults to None.
+
+        Raises:
+            RevocationManagerError: If no revocation registry record is found for the
+                given rev_reg_id.
 
         """
         revoc = AnonCredsRevocation(self._profile)
@@ -129,9 +161,6 @@ class RevocationManager:
                     result.revoked,
                     options=options,
                 )
-            await notify_revocation_published_event(
-                self._profile, rev_reg_id, [cred_rev_id]
-            )
 
         else:
             await revoc.mark_pending_revocations(rev_reg_id, int(cred_rev_id))
@@ -159,8 +188,9 @@ class RevocationManager:
         This is an indy registry specific operation.
 
         Args:
-            rev_reg_id: revocation registry id
+            rev_reg_def_id: revocation registry definition id
             apply_ledger_update: whether to apply an update to the ledger
+            genesis_transactions: genesis transactions for the ledger
 
         Returns:
             Number of credentials posted to ledger
@@ -212,6 +242,7 @@ class RevocationManager:
                     - all pending revocations from all revocation registry tagged 0
                     - pending ["1", "2"] from revocation registry tagged 1
                     - no pending revocations from any other revocation registries.
+            options: Additional options for the revocation registry publish
 
         Returns: mapping from each revocation registry id to its cred rev ids published.
         """
@@ -228,18 +259,13 @@ class RevocationManager:
             else:
                 limit_crids = None
 
-            result = await revoc.revoke_pending_credentials(
-                rrid, limit_crids=limit_crids
-            )
+            result = await revoc.revoke_pending_credentials(rrid, limit_crids=limit_crids)
             if result.curr and result.revoked:
                 await self.set_cred_revoked_state(rrid, result.revoked)
                 await revoc.update_revocation_list(
                     rrid, result.prev, result.curr, result.revoked, options
                 )
                 published_crids[rrid] = sorted(result.revoked)
-                await notify_revocation_published_event(
-                    self._profile, rrid, [str(crid) for crid in result.revoked]
-                )
 
         return published_crids
 

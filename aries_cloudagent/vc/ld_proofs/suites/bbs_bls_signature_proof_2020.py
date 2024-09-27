@@ -1,7 +1,6 @@
 """BbsBlsSignatureProof2020 class."""
 
 import re
-
 from os import urandom
 from typing import List
 
@@ -11,25 +10,27 @@ from .bbs_bls_signature_2020_base import BbsBlsSignature2020Base
 
 if BbsBlsSignature2020Base.BBS_SUPPORTED:
     from ursa_bbs_signatures import (
-        create_proof as bls_create_proof,
-        verify_proof as bls_verify_proof,
+        BlsKeyPair,
         CreateProofRequest,
+        ProofMessage,
+        ProofMessageType,
         VerifyProofRequest,
         get_total_message_count,
-        ProofMessage,
-        BlsKeyPair,
-        ProofMessageType,
+    )
+    from ursa_bbs_signatures import (
+        create_proof as bls_create_proof,
+    )
+    from ursa_bbs_signatures import (
+        verify_proof as bls_verify_proof,
     )
 
 from ....utils.dependencies import assert_ursa_bbs_signatures_installed
 from ....wallet.util import b64_to_bytes, bytes_to_b64
-
 from ..crypto import _KeyPair as KeyPair
-from ..error import LinkedDataProofException
-from ..validation_result import ProofResult
 from ..document_loader import DocumentLoaderMethod
+from ..error import LinkedDataProofException
 from ..purposes import _ProofPurpose as ProofPurpose
-
+from ..validation_result import ProofResult
 from .bbs_bls_signature_2020 import BbsBlsSignature2020
 from .linked_data_proof import DeriveProofResult
 
@@ -104,9 +105,7 @@ class BbsBlsSignatureProof2020(BbsBlsSignature2020Base):
         # document statements into actual node identifiers
         # e.g _:c14n0 => urn:bnid:_:c14n0
         transformed_input_document_statements = (
-            self._transform_blank_node_ids_into_placeholder_node_ids(
-                document_statements
-            )
+            self._transform_blank_node_ids_into_placeholder_node_ids(document_statements)
         )
 
         # Transform the resulting RDF statements back into JSON-LD
@@ -213,9 +212,7 @@ class BbsBlsSignatureProof2020(BbsBlsSignature2020Base):
         derived_proof["proofPurpose"] = proof["proofPurpose"]
         derived_proof["created"] = proof["created"]
 
-        return DeriveProofResult(
-            document={**reveal_document_result}, proof=derived_proof
-        )
+        return DeriveProofResult(document={**reveal_document_result}, proof=derived_proof)
 
     async def verify_proof(
         self,
@@ -267,7 +264,7 @@ class BbsBlsSignatureProof2020(BbsBlsSignature2020Base):
                 total_message_count
             )
 
-            # verify dervied proof
+            # verify derived proof
             verify_request = VerifyProofRequest(
                 public_key=bbs_public_key,
                 proof=proof_bytes,

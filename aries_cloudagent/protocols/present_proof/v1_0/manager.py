@@ -4,7 +4,6 @@ import json
 import logging
 from typing import Optional
 
-from ...out_of_band.v1_0.models.oob_record import OobRecord
 from ....connections.models.conn_record import ConnRecord
 from ....core.error import BaseError
 from ....core.profile import Profile
@@ -12,8 +11,10 @@ from ....indy.verifier import IndyVerifier
 from ....messaging.decorators.attach_decorator import AttachDecorator
 from ....messaging.responder import BaseResponder
 from ....storage.error import StorageNotFoundError
+from ...out_of_band.v1_0.models.oob_record import OobRecord
 from ..indy.pres_exch_handler import IndyPresExchHandler
-
+from .message_types import ATTACH_DECO_IDS, PRESENTATION, PRESENTATION_REQUEST
+from .messages.presentation import Presentation
 from .messages.presentation_ack import PresentationAck
 from .messages.presentation_problem_report import (
     PresentationProblemReport,
@@ -21,8 +22,6 @@ from .messages.presentation_problem_report import (
 )
 from .messages.presentation_proposal import PresentationProposal
 from .messages.presentation_request import PresentationRequest
-from .messages.presentation import Presentation
-from .message_types import ATTACH_DECO_IDS, PRESENTATION, PRESENTATION_REQUEST
 from .models.presentation_exchange import V10PresentationExchange
 
 LOGGER = logging.getLogger(__name__)
@@ -299,9 +298,7 @@ class PresentationManager:
         )
         presentation_exchange_record.presentation = indy_proof
         async with self._profile.session() as session:
-            await presentation_exchange_record.save(
-                session, reason="create presentation"
-            )
+            await presentation_exchange_record.save(session, reason="create presentation")
 
         return presentation_exchange_record, presentation_message
 
@@ -364,9 +361,9 @@ class PresentationManager:
                 name = proof_req["requested_attributes"][reft]["name"]
                 value = attr_spec["raw"]
                 if not presentation_preview.has_attr_spec(
-                    cred_def_id=presentation["identifiers"][
-                        attr_spec["sub_proof_index"]
-                    ]["cred_def_id"],
+                    cred_def_id=presentation["identifiers"][attr_spec["sub_proof_index"]][
+                        "cred_def_id"
+                    ],
                     name=name,
                     value=value,
                 ):
@@ -406,6 +403,7 @@ class PresentationManager:
         Args:
             presentation_exchange_record: presentation exchange record
                 with presentation request and presentation to verify
+            responder: responder to use
 
         Returns:
             presentation record, updated
@@ -437,9 +435,7 @@ class PresentationManager:
         presentation_exchange_record.state = V10PresentationExchange.STATE_VERIFIED
 
         async with self._profile.session() as session:
-            await presentation_exchange_record.save(
-                session, reason="verify presentation"
-            )
+            await presentation_exchange_record.save(session, reason="verify presentation")
 
         await self.send_presentation_ack(presentation_exchange_record, responder)
         return presentation_exchange_record
@@ -453,6 +449,7 @@ class PresentationManager:
 
         Args:
             presentation_exchange_record: presentation exchange record with thread id
+            responder: Responder to use
 
         """
         responder = responder or self._profile.inject_or(BaseResponder)
@@ -516,16 +513,16 @@ class PresentationManager:
         connection_id = connection_record.connection_id if connection_record else None
 
         async with self._profile.session() as session:
-            (presentation_exchange_record) = (
-                await V10PresentationExchange.retrieve_by_tag_filter(
-                    session,
-                    {"thread_id": message._thread_id},
-                    {
-                        # connection_id can be null in connectionless
-                        "connection_id": connection_id,
-                        "role": V10PresentationExchange.ROLE_PROVER,
-                    },
-                )
+            (
+                presentation_exchange_record
+            ) = await V10PresentationExchange.retrieve_by_tag_filter(
+                session,
+                {"thread_id": message._thread_id},
+                {
+                    # connection_id can be null in connectionless
+                    "connection_id": connection_id,
+                    "role": V10PresentationExchange.ROLE_PROVER,
+                },
             )
             presentation_exchange_record.verified = message._verification_result
             presentation_exchange_record.state = (

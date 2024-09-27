@@ -5,9 +5,10 @@ from abc import ABC, abstractmethod
 
 from aries_cloudagent.protocols.endorse_transaction.v1_0.util import is_author_role
 
-from ..anoncreds.revocation import AnonCredsRevocation
+from ..anoncreds.revocation import AnonCredsRevocation, AnonCredsRevocationError
 from ..core.event_bus import EventBus
 from ..core.profile import Profile
+from ..revocation.util import notify_revocation_published_event
 from .events import (
     CRED_DEF_FINISHED_PATTERN,
     REV_LIST_FINISHED_PATTERN,
@@ -94,7 +95,16 @@ class DefaultRevocationSetup(AnonCredsRevocationSetupManager):
 
         if auto_create_revocation:
             revoc = AnonCredsRevocation(profile)
-            await revoc.upload_tails_file(payload.rev_reg_def)
+            failed_to_upload_tails = False
+            try:
+                await revoc.upload_tails_file(payload.rev_reg_def)
+            except AnonCredsRevocationError as err:
+                LOGGER.warning(f"Failed to upload tails file: {err}")
+                failed_to_upload_tails = True
+
+            if failed_to_upload_tails:
+                payload.options["failed_to_upload"] = True
+
             await revoc.create_and_register_revocation_list(
                 payload.rev_reg_def_id, payload.options
             )
@@ -105,4 +115,6 @@ class DefaultRevocationSetup(AnonCredsRevocationSetupManager):
 
     async def on_rev_list(self, profile: Profile, event: RevListFinishedEvent):
         """Handle rev list finished."""
-        LOGGER.debug("Revocation list finished: %s", event.payload.rev_reg_def_id)
+        await notify_revocation_published_event(
+            profile, event.payload.rev_reg_id, event.payload.revoked
+        )

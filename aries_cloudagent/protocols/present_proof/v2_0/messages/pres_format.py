@@ -3,9 +3,9 @@
 from collections import namedtuple
 from enum import Enum
 from typing import TYPE_CHECKING, Mapping, Sequence, Type, Union
-from uuid import uuid4
 
 from marshmallow import EXCLUDE, fields
+from uuid_utils import uuid4
 
 from .....messaging.decorators.attach_decorator import AttachDecorator
 from .....messaging.models.base import BaseModel, BaseModelSchema
@@ -38,14 +38,17 @@ class V20PresFormat(BaseModel):
             ),
         )
         """
-        To make the switch from indy to anoncreds replace the above with the following
-        INDY = FormatSpec(
-            "hlindy/",
-            DeferLoad(
-                "aries_cloudagent.protocols.present_proof.v2_0"
-                ".formats.anoncreds.handler.AnonCredsPresExchangeHandler"
-            ),
-        )
+        To make the switch from indy to anoncreds replace the above with the following.
+        
+        ::
+        
+            INDY = FormatSpec(
+                "hlindy/",
+                DeferLoad(
+                    "aries_cloudagent.protocols.present_proof.v2_0"
+                    ".formats.anoncreds.handler.AnonCredsPresExchangeHandler"
+                ),
+            )
         """
         DIF = FormatSpec(
             "dif/",

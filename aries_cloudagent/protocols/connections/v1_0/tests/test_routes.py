@@ -1,22 +1,27 @@
 import json
-
-from unittest.mock import ANY
 from unittest import IsolatedAsyncioTestCase
+from unittest.mock import ANY
+
 from aries_cloudagent.tests import mock
 
 from .....admin.request_context import AdminRequestContext
 from .....cache.base import BaseCache
 from .....cache.in_memory import InMemoryCache
 from .....connections.models.conn_record import ConnRecord
+from .....core.in_memory import InMemoryProfile
 from .....storage.error import StorageNotFoundError
-
 from .. import routes as test_module
 
 
 class TestConnectionRoutes(IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.session_inject = {}
-        self.context = AdminRequestContext.test_context(self.session_inject)
+        profile = InMemoryProfile.test_profile(
+            settings={
+                "admin.admin_api_key": "secret-key",
+            }
+        )
+        self.context = AdminRequestContext.test_context(self.session_inject, profile)
         self.request_dict = {
             "context": self.context,
             "outbound_message_router": mock.CoroutineMock(),
@@ -26,13 +31,14 @@ class TestConnectionRoutes(IsolatedAsyncioTestCase):
             match_info={},
             query={},
             __getitem__=lambda _, k: self.request_dict[k],
+            headers={"x-api-key": "secret-key"},
         )
 
     async def test_connections_list(self):
         self.request.query = {
             "invitation_id": "dummy",  # exercise tag filter assignment
             "their_role": ConnRecord.Role.REQUESTER.rfc160,
-            "connection_protocol": ConnRecord.Protocol.RFC_0160.aries_protocol,
+            "connection_protocol": "connections/1.0",
             "invitation_key": "some-invitation-key",
             "their_public_did": "a_public_did",
             "invitation_msg_id": "dummy_msg",
@@ -42,9 +48,7 @@ class TestConnectionRoutes(IsolatedAsyncioTestCase):
         STATE_INVITATION = ConnRecord.State.INVITATION
         STATE_ABANDONED = ConnRecord.State.ABANDONED
         ROLE_REQUESTER = ConnRecord.Role.REQUESTER
-        with mock.patch.object(
-            test_module, "ConnRecord", autospec=True
-        ) as mock_conn_rec:
+        with mock.patch.object(test_module, "ConnRecord", autospec=True) as mock_conn_rec:
             mock_conn_rec.query = mock.CoroutineMock()
             mock_conn_rec.Role = ConnRecord.Role
             mock_conn_rec.State = mock.MagicMock(
@@ -97,9 +101,11 @@ class TestConnectionRoutes(IsolatedAsyncioTestCase):
                         "their_public_did": "a_public_did",
                         "invitation_msg_id": "dummy_msg",
                     },
+                    limit=100,
+                    offset=0,
                     post_filter_positive={
                         "their_role": list(ConnRecord.Role.REQUESTER.value),
-                        "connection_protocol": ConnRecord.Protocol.RFC_0160.aries_protocol,
+                        "connection_protocol": "connections/1.0",
                     },
                     alt=True,
                 )
@@ -124,9 +130,7 @@ class TestConnectionRoutes(IsolatedAsyncioTestCase):
 
         STATE_COMPLETED = ConnRecord.State.COMPLETED
         ROLE_REQUESTER = ConnRecord.Role.REQUESTER
-        with mock.patch.object(
-            test_module, "ConnRecord", autospec=True
-        ) as mock_conn_rec:
+        with mock.patch.object(test_module, "ConnRecord", autospec=True) as mock_conn_rec:
             mock_conn_rec.Role = mock.MagicMock(return_value=ROLE_REQUESTER)
             mock_conn_rec.State = mock.MagicMock(
                 COMPLETED=STATE_COMPLETED,
@@ -322,9 +326,7 @@ class TestConnectionRoutes(IsolatedAsyncioTestCase):
     async def test_connections_retrieve_x(self):
         self.request.match_info = {"conn_id": "dummy"}
         mock_conn_rec = mock.MagicMock()
-        mock_conn_rec.serialize = mock.MagicMock(
-            side_effect=test_module.BaseModelError()
-        )
+        mock_conn_rec.serialize = mock.MagicMock(side_effect=test_module.BaseModelError())
 
         with mock.patch.object(
             test_module.ConnRecord, "retrieve_by_id", mock.CoroutineMock()
@@ -379,7 +381,7 @@ class TestConnectionRoutes(IsolatedAsyncioTestCase):
                 routing_keys=body["routing_keys"],
                 my_endpoint=body["service_endpoint"],
                 metadata=body["metadata"],
-                mediation_id="some-id"
+                mediation_id="some-id",
             )
             mock_response.assert_called_once_with(
                 {

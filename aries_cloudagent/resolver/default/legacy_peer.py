@@ -3,9 +3,9 @@
 Resolution is performed by looking up a stored DID Document.
 """
 
+import logging
 from copy import deepcopy
 from dataclasses import asdict, dataclass
-import logging
 from typing import List, Optional, Sequence, Text, Union
 
 from pydid import DID
@@ -20,7 +20,6 @@ from ...storage.error import StorageNotFoundError
 from ...wallet.key_type import ED25519
 from ..base import BaseDIDResolver, DIDNotFound, ResolverType
 
-
 LOGGER = logging.getLogger(__name__)
 
 
@@ -31,63 +30,70 @@ class LegacyDocCorrections:
     conventions. This also helps with consistent processing of DID Docs.
 
     Input example:
-    {
-      "@context": "https://w3id.org/did/v1",
-      "id": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ",
-      "publicKey": [
+
+    ::
+
         {
-          "id": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ#1",
-          "type": "Ed25519VerificationKey2018",
-          "controller": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ",
-          "publicKeyBase58": "AU2FFjtkVzjFuirgWieqGGqtNrAZWS9LDuB8TDp6EUrG"
+            "@context": "https://w3id.org/did/v1",
+            "id": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ",
+            "publicKey": [
+                {
+                "id": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ#1",
+                "type": "Ed25519VerificationKey2018",
+                "controller": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ",
+                "publicKeyBase58": "AU2FFjtkVzjFuirgWieqGGqtNrAZWS9LDuB8TDp6EUrG"
+                }
+            ],
+            "authentication": [
+                {
+                "type": "Ed25519SignatureAuthentication2018",
+                "publicKey": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ#1"
+                }
+            ],
+            "service": [
+                {
+                "id": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ;indy",
+                "type": "IndyAgent",
+                "priority": 0,
+                "recipientKeys": [
+                    "AU2FFjtkVzjFuirgWieqGGqtNrAZWS9LDuB8TDp6EUrG"
+                ],
+                "routingKeys": ["9NnKFUZoYcCqYC2PcaXH3cnaGsoRfyGgyEHbvbLJYh8j"],
+                "serviceEndpoint": "http://bob:3000"
+                }
+            ]
         }
-      ],
-      "authentication": [
-        {
-          "type": "Ed25519SignatureAuthentication2018",
-          "publicKey": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ#1"
-        }
-      ],
-      "service": [
-        {
-          "id": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ;indy",
-          "type": "IndyAgent",
-          "priority": 0,
-          "recipientKeys": [
-            "AU2FFjtkVzjFuirgWieqGGqtNrAZWS9LDuB8TDp6EUrG"
-          ],
-          "routingKeys": ["9NnKFUZoYcCqYC2PcaXH3cnaGsoRfyGgyEHbvbLJYh8j"],
-          "serviceEndpoint": "http://bob:3000"
-        }
-      ]
-    }
 
     Output example:
-    {
-      "@context": "https://w3id.org/did/v1",
-      "id": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ",
-      "verificationMethod": [
+
+    ::
+
         {
-          "id": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ#1",
-          "type": "Ed25519VerificationKey2018",
-          "controller": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ",
-          "publicKeyBase58": "AU2FFjtkVzjFuirgWieqGGqtNrAZWS9LDuB8TDp6EUrG"
+            "@context": "https://w3id.org/did/v1",
+            "id": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ",
+            "verificationMethod": [
+                {
+                "id": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ#1",
+                "type": "Ed25519VerificationKey2018",
+                "controller": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ",
+                "publicKeyBase58": "AU2FFjtkVzjFuirgWieqGGqtNrAZWS9LDuB8TDp6EUrG"
+                }
+            ],
+            "authentication": ["did:sov:JNKL9kJxQi5pNCfA8QBXdJ#1"],
+            "service": [
+                {
+                "id": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ#didcomm",
+                "type": "did-communication",
+                "priority": 0,
+                "recipientKeys": ["did:sov:JNKL9kJxQi5pNCfA8QBXdJ#1"],
+                "routingKeys": [
+                    "did:key:z6Mknq3MqipEt9hJegs6J9V7tiLa6T5H5rX3fFCXksJKTuv7#z6Mknq3MqipEt9hJegs6J9V7tiLa6T5H5rX3fFCXksJKTuv7"
+                ],
+                "serviceEndpoint": "http://bob:3000"
+                }
+            ]
         }
-      ],
-      "authentication": ["did:sov:JNKL9kJxQi5pNCfA8QBXdJ#1"],
-      "service": [
-        {
-          "id": "did:sov:JNKL9kJxQi5pNCfA8QBXdJ#didcomm",
-          "type": "did-communication",
-          "priority": 0,
-          "recipientKeys": ["did:sov:JNKL9kJxQi5pNCfA8QBXdJ#1"],
-          "routingKeys": [
-              "did:key:z6Mknq3MqipEt9hJegs6J9V7tiLa6T5H5rX3fFCXksJKTuv7#z6Mknq3MqipEt9hJegs6J9V7tiLa6T5H5rX3fFCXksJKTuv7"
-          ],
-          "serviceEndpoint": "http://bob:3000"
-        }
-      ]
-    }
+
     """
 
     @staticmethod
@@ -214,9 +220,7 @@ class LegacyDocCorrections:
         return value
 
     @staticmethod
-    def remove_verification_method(
-        vms: List[dict], public_key_base58: str
-    ) -> List[dict]:
+    def remove_verification_method(vms: List[dict], public_key_base58: str) -> List[dict]:
         """Remove the verification method with the given key."""
         return [vm for vm in vms if vm["publicKeyBase58"] != public_key_base58]
 

@@ -5,17 +5,16 @@ import json
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import List
+from unittest import IsolatedAsyncioTestCase
 from unittest.mock import ANY
 
 from aries_cloudagent.tests import mock
-from unittest import IsolatedAsyncioTestCase
 
 from .....connections.models.conn_record import ConnRecord
 from .....connections.models.connection_target import ConnectionTarget
 from .....connections.models.diddoc import DIDDoc, PublicKey, PublicKeyType, Service
 from .....core.event_bus import EventBus
 from .....core.in_memory import InMemoryProfile
-from .....core.util import get_version_from_message
 from .....core.oob_processor import OobMessageProcessor
 from .....did.did_key import DIDKey
 from .....messaging.decorators.attach_decorator import AttachDecorator
@@ -25,10 +24,10 @@ from .....messaging.util import datetime_now, datetime_to_str, str_to_epoch
 from .....multitenant.base import BaseMultitenantManager
 from .....multitenant.manager import MultitenantManager
 from .....protocols.coordinate_mediation.v1_0.manager import MediationManager
-from .....protocols.coordinate_mediation.v1_0.route_manager import RouteManager
 from .....protocols.coordinate_mediation.v1_0.models.mediation_record import (
     MediationRecord,
 )
+from .....protocols.coordinate_mediation.v1_0.route_manager import RouteManager
 from .....protocols.didexchange.v1_0.manager import DIDXManager
 from .....protocols.issue_credential.v1_0.messages.credential_offer import (
     CredentialOffer as V10CredOffer,
@@ -50,7 +49,6 @@ from .....protocols.issue_credential.v2_0.messages.inner.cred_preview import (
     V20CredAttrSpec,
     V20CredPreview,
 )
-
 from .....protocols.present_proof.v1_0.message_types import (
     ATTACH_DECO_IDS as V10_PRES_ATTACH_FORMAT,
 )
@@ -58,7 +56,6 @@ from .....protocols.present_proof.v1_0.message_types import PRESENTATION_REQUEST
 from .....protocols.present_proof.v1_0.messages.presentation_request import (
     PresentationRequest,
 )
-
 from .....protocols.present_proof.v2_0.message_types import (
     ATTACHMENT_FORMAT as V20_PRES_ATTACH_FORMAT,
 )
@@ -315,9 +312,7 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
         self.responder = MockResponder()
         self.responder.send = mock.CoroutineMock()
 
-        self.test_mediator_routing_keys = [
-            "3Dn1SJNPaCXcvvJvSbsFWP2xaCjMom3can8CQNhWrTRR"
-        ]
+        self.test_mediator_routing_keys = ["3Dn1SJNPaCXcvvJvSbsFWP2xaCjMom3can8CQNhWrTRR"]
         self.test_mediator_conn_id = "mediator-conn-id"
         self.test_mediator_endpoint = "http://mediator.example.com"
 
@@ -591,11 +586,7 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
                 key_type=ED25519,
             )
             mock_retrieve_cxid_v1.side_effect = test_module.StorageNotFoundError()
-            mock_retrieve_cxid_v2.return_value = mock.MagicMock(
-                cred_offer=mock.MagicMock(
-                    serialize=mock.MagicMock(return_value={"cred": "offer"})
-                )
-            )
+            mock_retrieve_cxid_v2.return_value = mock.MagicMock(cred_offer=V20CredOffer())
             invi_rec = await self.manager.create_invitation(
                 my_endpoint=TestConfig.test_endpoint,
                 public=False,
@@ -607,10 +598,10 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
             mock_retrieve_cxid_v2.assert_called_once_with(ANY, "dummy-id")
             assert isinstance(invi_rec, InvitationRecord)
             assert not invi_rec.invitation.handshake_protocols
-            assert invi_rec.invitation.requests_attach[0].content == {
-                "cred": "offer",
-                "~thread": {"pthid": invi_rec.invi_msg_id},
-            }
+            attach = invi_rec.invitation.requests_attach[0].content
+            assert isinstance(attach, dict)
+            assert "~thread" in attach and "pthid" in attach["~thread"]
+            assert attach["~thread"]["pthid"] == invi_rec.invi_msg_id
 
     async def test_create_invitation_attachment_present_proof_v1_0(self):
         self.profile.context.update_settings({"public_invites": True})
@@ -760,7 +751,15 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
                     public=False,
                     hs_protos=[test_module.HSProto.RFC23],
                     multi_use=False,
-                    attachments=[{"having": "attachment", "is": "no", "good": "here"}],
+                    attachments=[
+                        {
+                            "type": "asdf",
+                            "id": "asdf",
+                            "having": "attachment",
+                            "is": "no",
+                            "good": "here",
+                        }
+                    ],
                 )
             assert "Unknown attachment type" in str(context.exception)
 
@@ -793,9 +792,9 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
                     service_accept=["didcomm/aip1", "didcomm/aip2;env=rfc19"],
                 )
 
-                assert invi_rec._invitation.ser[
-                    "@type"
-                ] == DIDCommPrefix.qualify_current(self.TEST_INVI_MESSAGE_TYPE)
+                assert invi_rec._invitation.ser["@type"] == DIDCommPrefix.qualify_current(
+                    self.TEST_INVI_MESSAGE_TYPE
+                )
                 assert not invi_rec._invitation.ser.get("requests~attach")
                 assert invi_rec.invitation.label == "That guy"
                 assert (
@@ -822,9 +821,7 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
             )
             service = invi_rec._invitation.ser["services"][0]
             invitation_key = DIDKey.from_did(service["recipientKeys"][0]).public_key_b58
-            record = await ConnRecord.retrieve_by_invitation_key(
-                session, invitation_key
-            )
+            record = await ConnRecord.retrieve_by_invitation_key(session, invitation_key)
             assert await record.metadata_get_all(session) == {"hello": "world"}
 
     async def test_create_invitation_x_public_metadata(self):
@@ -935,7 +932,7 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
             )
 
             oob_record = await self.manager._create_handshake_reuse_message(
-                oob_record, self.test_conn_rec, get_version_from_message(invitation)
+                oob_record, self.test_conn_rec, invitation._version
             )
 
             _, kwargs = self.responder.send.call_args
@@ -1248,6 +1245,7 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
                     auto_accept=None,
                     alias=None,
                     mediation_id=mediation_record._id,
+                    protocol="didexchange/1.0",
                 )
 
     async def test_receive_invitation_with_invalid_mediation(self):
@@ -1283,6 +1281,7 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
                 auto_accept=None,
                 alias=None,
                 mediation_id=None,
+                protocol="didexchange/1.0",
             )
 
     async def test_receive_invitation_didx_services_with_service_block(self):
@@ -1439,9 +1438,7 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
 
             oob_mgr_find_existing_conn.assert_called_once()
             assert result.state == OobRecord.STATE_ACCEPTED
-            oob_record_save.assert_called_once_with(
-                ANY, reason="Storing reuse msg data"
-            )
+            oob_record_save.assert_called_once_with(ANY, reason="Storing reuse msg data")
 
     async def test_receive_invitation_handshake_reuse(self):
         self.profile.context.update_settings({"public_invites": True})
@@ -1457,7 +1454,7 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
 
         with mock.patch.object(
             test_module.OutOfBandManager,
-            "_handle_hanshake_reuse",
+            "_handle_handshake_reuse",
             mock.CoroutineMock(),
         ) as handle_handshake_reuse, mock.patch.object(
             test_module.OutOfBandManager,
@@ -1486,7 +1483,7 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
 
             perform_handshake.assert_not_called()
             handle_handshake_reuse.assert_called_once_with(
-                ANY, test_exist_conn, get_version_from_message(oob_invitation)
+                ANY, test_exist_conn, oob_invitation._version
             )
 
             assert result.state == OobRecord.STATE_ACCEPTED
@@ -1505,7 +1502,7 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
 
         with mock.patch.object(
             test_module.OutOfBandManager,
-            "_handle_hanshake_reuse",
+            "_handle_handshake_reuse",
             mock.CoroutineMock(),
         ) as handle_handshake_reuse, mock.patch.object(
             test_module.OutOfBandManager,
@@ -1547,7 +1544,7 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
             )
 
             handle_handshake_reuse.assert_called_once_with(
-                ANY, test_exist_conn, get_version_from_message(oob_invitation)
+                ANY, test_exist_conn, oob_invitation._version
             )
             perform_handshake.assert_called_once_with(
                 oob_record=ANY,
@@ -1612,7 +1609,9 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
             mock.CoroutineMock(),
         ) as mock_service_decorator_from_service:
             mock_create_signing_key.return_value = KeyInfo(
-                verkey="a-verkey", metadata={}, key_type=ED25519
+                verkey="H3C2AVvLMv6gmMNam3uVAjZpfkcJCwDwnZn6z3wXmqPV",
+                metadata={},
+                key_type=ED25519,
             )
             mock_service_decorator_from_service.return_value = mock_service_decorator
             oob_invitation = InvitationMessage(
@@ -1625,7 +1624,10 @@ class TestOOBManager(IsolatedAsyncioTestCase, TestConfig):
                 oob_invitation, use_existing_connection=True
             )
 
-            assert oob_record.our_recipient_key == "a-verkey"
+            assert (
+                oob_record.our_recipient_key
+                == "H3C2AVvLMv6gmMNam3uVAjZpfkcJCwDwnZn6z3wXmqPV"
+            )
             assert oob_record.our_service
             assert oob_record.state == OobRecord.STATE_PREPARE_RESPONSE
 

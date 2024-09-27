@@ -2,20 +2,19 @@
 
 from functools import partial
 from typing import AsyncGenerator
-import pytest
-from unittest import IsolatedAsyncioTestCase
-from unittest import mock
+from unittest import IsolatedAsyncioTestCase, mock
 
+import pytest
 
 from ......connections.models.conn_record import ConnRecord
 from ......core.event_bus import EventBus, MockEventBus
 from ......messaging.base_handler import HandlerException
 from ......messaging.request_context import RequestContext
 from ......messaging.responder import MockResponder
+from ...manager import MediationManager
 from ...messages.inner.keylist_update_rule import KeylistUpdateRule
 from ...messages.inner.keylist_updated import KeylistUpdated
 from ...messages.keylist_update_response import KeylistUpdateResponse
-from ...manager import MediationManager
 from ...route_manager import RouteManager
 from ...tests.test_route_manager import MockRouteManager
 from ..keylist_update_response_handler import KeylistUpdateResponseHandler
@@ -43,9 +42,7 @@ class TestKeylistUpdateResponseHandler(IsolatedAsyncioTestCase):
         self.context.connection_ready = True
         self.context.connection_record = ConnRecord(connection_id=TEST_CONN_ID)
         self.mock_event_bus = MockEventBus()
-        self.context.profile.context.injector.bind_instance(
-            EventBus, self.mock_event_bus
-        )
+        self.context.profile.context.injector.bind_instance(EventBus, self.mock_event_bus)
         self.route_manager = MockRouteManager()
         self.context.profile.context.injector.bind_instance(
             RouteManager, self.route_manager
@@ -79,9 +76,7 @@ class TestKeylistUpdateResponseHandler(IsolatedAsyncioTestCase):
             yield ConnRecord(connection_id="conn_id_1")
             yield ConnRecord(connection_id="conn_id_2")
 
-        async def _retrieve_by_invitation_key(
-            generator: AsyncGenerator, *args, **kwargs
-        ):
+        async def _retrieve_by_invitation_key(generator: AsyncGenerator, *args, **kwargs):
             return await generator.__anext__()
 
         with mock.patch.object(

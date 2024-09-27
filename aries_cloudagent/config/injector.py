@@ -1,9 +1,9 @@
 """Standard Injector implementation."""
 
-from typing import Mapping, Optional, Type
+from typing import Dict, Mapping, Optional, Type
 
-from .base import BaseProvider, BaseInjector, InjectionError, InjectType
-from .provider import InstanceProvider, CachedProvider
+from .base import BaseInjector, BaseProvider, InjectionError, InjectType
+from .provider import CachedProvider, InstanceProvider
 from .settings import Settings
 
 
@@ -11,11 +11,14 @@ class Injector(BaseInjector):
     """Injector implementation with static and dynamic bindings."""
 
     def __init__(
-        self, settings: Mapping[str, object] = None, *, enforce_typing: bool = True
+        self,
+        settings: Optional[Mapping[str, object]] = None,
+        *,
+        enforce_typing: bool = True,
     ):
         """Initialize an `Injector`."""
         self.enforce_typing = enforce_typing
-        self._providers = {}
+        self._providers: Dict[Type, BaseProvider] = {}
         self._settings = Settings(settings)
 
     @property
@@ -42,6 +45,24 @@ class Injector(BaseInjector):
             provider = CachedProvider(provider)
         self._providers[base_cls] = provider
 
+    def soft_bind_instance(self, base_cls: Type[InjectType], instance: InjectType):
+        """Add a static instance as a soft class binding.
+
+        The binding occurs only if a provider for the same type does not already exist.
+        """
+        if not self.get_provider(base_cls):
+            self.bind_instance(base_cls, instance)
+
+    def soft_bind_provider(
+        self, base_cls: Type[InjectType], provider: BaseProvider, *, cache: bool = False
+    ):
+        """Add a dynamic instance resolver as a soft class binding.
+
+        The binding occurs only if a provider for the same type does not already exist.
+        """
+        if not self.get_provider(base_cls):
+            self.bind_provider(base_cls, provider, cache=cache)
+
     def clear_binding(self, base_cls: Type[InjectType]):
         """Remove a previously-added binding."""
         if base_cls in self._providers:
@@ -54,7 +75,7 @@ class Injector(BaseInjector):
     def inject_or(
         self,
         base_cls: Type[InjectType],
-        settings: Mapping[str, object] = None,
+        settings: Optional[Mapping[str, object]] = None,
         default: Optional[InjectType] = None,
     ) -> Optional[InjectType]:
         """Get the provided instance of a given class identifier or default if not found.
@@ -92,16 +113,20 @@ class Injector(BaseInjector):
     def inject(
         self,
         base_cls: Type[InjectType],
-        settings: Mapping[str, object] = None,
+        settings: Optional[Mapping[str, object]] = None,
     ) -> InjectType:
         """Get the provided instance of a given class identifier.
 
         Args:
-            cls: The base class to retrieve an instance of
-            params: An optional dict providing configuration to the provider
+            base_cls (Type[InjectType]): The base class to retrieve an instance of.
+            settings (Optional[Mapping[str, object]]): An optional dictionary providing
+                configuration to the provider.
 
         Returns:
-            An instance of the base class, or None
+            InjectType: An instance of the base class, or None.
+
+        Raises:
+            InjectionError: If no instance is provided for the given class identifier.
 
         """
         result = self.inject_or(base_cls, settings)

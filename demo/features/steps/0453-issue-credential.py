@@ -1,30 +1,23 @@
-from behave import given, when, then
 import json
-from time import sleep
-import time
 
 from bdd_support.agent_backchannel_client import (
-    aries_container_create_schema_cred_def,
-    aries_container_check_exists_cred_def,
-    aries_container_issue_credential,
-    aries_container_receive_credential,
-    read_schema_data,
-    read_credential_data,
     agent_container_DELETE,
     agent_container_GET,
     agent_container_POST,
+    aries_container_check_exists_cred_def,
+    aries_container_create_schema_cred_def,
+    aries_container_issue_credential,
+    aries_container_receive_credential,
     async_sleep,
+    read_credential_data,
+    read_schema_data,
 )
-from runners.agent_container import AgentContainer
-from runners.support.agent import (
-    CRED_FORMAT_INDY,
-    CRED_FORMAT_JSON_LD,
-    DID_METHOD_SOV,
-    DID_METHOD_KEY,
-    KEY_TYPE_ED255,
-    KEY_TYPE_BLS,
-    SIG_TYPE_BLS,
-)
+from behave import given, then, when
+from runners.support.agent import DID_METHOD_KEY
+
+
+def is_anoncreds(agent):
+    return agent["agent"].wallet_type == "askar-anoncreds"
 
 
 # This step is defined in another feature file
@@ -52,6 +45,15 @@ def step_impl(context, issuer, schema_name):
 
     context.schema_name = schema_name
     context.cred_def_id = cred_def_id
+
+
+@when('"{issuer}" sets the credential type to {credential_type}')
+def step_impl(context, issuer, credential_type):
+    agent = context.active_agents[issuer]
+
+    agent["agent"].set_cred_type(credential_type)
+
+    assert agent["agent"].cred_type == credential_type
 
 
 @given('"{issuer}" offers a credential with data {credential_data}')
@@ -92,7 +94,7 @@ def step_impl(context, issuer, credential_data):
     context.cred_exchange = cred_exchange
 
     # delete this immediately, hopefully this is committed before the holder "accepts" it
-    resp = agent_container_DELETE(
+    agent_container_DELETE(
         agent["agent"],
         f"/issue-credential-2.0/records/{cred_exchange['cred_ex_id']}",
     )
@@ -174,9 +176,14 @@ def step_impl(context, holder):
     print("connection_id:", cred_exchange["cred_ex_record"]["connection_id"])
 
     # revoke the credential
-    revoke_status = agent_container_POST(
+    if is_anoncreds(agent):
+        endpoint = "/anoncreds/revocation/revoke"
+    else:
+        endpoint = "/revocation/revoke"
+
+    agent_container_POST(
         agent["agent"],
-        "/revocation/revoke",
+        endpoint,
         data={
             "rev_reg_id": cred_exchange["indy"]["rev_reg_id"],
             "cred_rev_id": cred_exchange["indy"]["cred_rev_id"],
@@ -209,9 +216,7 @@ def step_impl(context, holder):
     # check wallet status
     wallet_revoked_creds = agent_container_GET(
         agent["agent"],
-        "/revocation/registry/"
-        + cred_exchange["indy"]["rev_reg_id"]
-        + "/issued/details",
+        "/revocation/registry/" + cred_exchange["indy"]["rev_reg_id"] + "/issued/details",
     )
     print("wallet_revoked_creds:", wallet_revoked_creds)
     matched = False
@@ -300,9 +305,7 @@ def step_impl(context, holder):
     # check wallet status
     wallet_revoked_creds = agent_container_GET(
         agent["agent"],
-        "/revocation/registry/"
-        + cred_exchange["indy"]["rev_reg_id"]
-        + "/issued/details",
+        "/revocation/registry/" + cred_exchange["indy"]["rev_reg_id"] + "/issued/details",
     )
     matched = False
     for rec in wallet_revoked_creds:
@@ -341,12 +344,14 @@ def step_impl(context, holder):
     assert False
 
 
-@given('"{issuer}" is ready to issue a json-ld credential for {schema_name}')
-def step_impl(context, issuer, schema_name):
+@given(
+    '"{issuer}" is ready to issue a json-ld credential for {schema_name} with {key_type}'
+)
+def step_impl(context, issuer, schema_name, key_type):
     # create a "did:key" to use as issuer
     agent = context.active_agents[issuer]
 
-    data = {"method": DID_METHOD_KEY, "options": {"key_type": KEY_TYPE_BLS}}
+    data = {"method": DID_METHOD_KEY, "options": {"key_type": key_type}}
     new_did = agent_container_POST(
         agent["agent"],
         "/wallet/did/create",
@@ -357,12 +362,12 @@ def step_impl(context, issuer, schema_name):
     pass
 
 
-@given('"{holder}" is ready to receive a json-ld credential')
-def step_impl(context, holder):
+@given('"{holder}" is ready to receive a json-ld credential with {key_type}')
+def step_impl(context, holder, key_type):
     # create a "did:key" to use as holder identity
     agent = context.active_agents[holder]
 
-    data = {"method": DID_METHOD_KEY, "options": {"key_type": KEY_TYPE_BLS}}
+    data = {"method": DID_METHOD_KEY, "options": {"key_type": key_type}}
     new_did = agent_container_POST(
         agent["agent"],
         "/wallet/did/create",
@@ -374,8 +379,10 @@ def step_impl(context, holder):
     pass
 
 
-@when('"{issuer}" offers "{holder}" a json-ld credential with data {credential_data}')
-def step_impl(context, issuer, holder, credential_data):
+@when(
+    '"{issuer}" offers "{holder}" a json-ld credential with data {credential_data} and {sig_type}'
+)
+def step_impl(context, issuer, holder, credential_data, sig_type):
     # initiate a cred exchange with a json-ld credential
     agent = context.active_agents[issuer]
     holder_agent = context.active_agents[holder]
@@ -407,7 +414,7 @@ def step_impl(context, issuer, holder, credential_data):
                         "birthDate": "1958-07-17",
                     },
                 },
-                "options": {"proofType": SIG_TYPE_BLS},
+                "options": {"proofType": sig_type},
             }
         },
     }
@@ -423,9 +430,9 @@ def step_impl(context, issuer, holder, credential_data):
 
 
 @when(
-    '"{issuer}" offers and deletes "{holder}" a json-ld credential with data {credential_data}'
+    '"{issuer}" offers and deletes "{holder}" a json-ld credential with data {credential_data} and {sig_type}'
 )
-def step_impl(context, issuer, holder, credential_data):
+def step_impl(context, issuer, holder, credential_data, sig_type):
     # initiate a cred exchange with a json-ld credential
     agent = context.active_agents[issuer]
     holder_agent = context.active_agents[holder]
@@ -470,7 +477,7 @@ def step_impl(context, issuer, holder, credential_data):
                         "birthDate": "1958-07-17",
                     },
                 },
-                "options": {"proofType": SIG_TYPE_BLS},
+                "options": {"proofType": sig_type},
             }
         },
     }
@@ -520,9 +527,9 @@ def step_impl(context, issuer):
 
 
 @when(
-    '"{holder}" requests a json-ld credential with data {credential_data} from "{issuer}"'
+    '"{holder}" requests a json-ld credential with data {credential_data} from "{issuer}" with {sig_type}'
 )
-def step_impl(context, issuer, holder, credential_data):
+def step_impl(context, issuer, holder, credential_data, sig_type):
     issuer_agent = context.active_agents[issuer]
     holder_agent = context.active_agents[holder]
     data = {
@@ -553,7 +560,7 @@ def step_impl(context, issuer, holder, credential_data):
                         "birthDate": "1958-07-17",
                     },
                 },
-                "options": {"proofType": SIG_TYPE_BLS},
+                "options": {"proofType": sig_type},
             }
         },
     }
@@ -567,9 +574,9 @@ def step_impl(context, issuer, holder, credential_data):
 
 
 @when(
-    '"{issuer}" offers "{holder}" an anoncreds credential with data {credential_data}'
+    '"{issuer}" offers "{holder}" an anoncreds credential with data {credential_data} with {sig_type}'
 )
-def step_impl(context, issuer, holder, credential_data):
+def step_impl(context, issuer, holder, credential_data, sig_type):
     # initiate a cred exchange with an anoncreds credential
     agent = context.active_agents[issuer]
     holder_agent = context.active_agents[holder]
@@ -601,7 +608,7 @@ def step_impl(context, issuer, holder, credential_data):
                         "birthDate": "1958-07-17",
                     },
                 },
-                "options": {"proofType": SIG_TYPE_BLS},
+                "options": {"proofType": sig_type},
             }
         },
     }
@@ -635,19 +642,22 @@ def step_impl(context, holder):
 
 
 @given(
-    '"{holder}" has an issued json-ld {schema_name} credential {credential_data} from "{issuer}"'
+    '"{holder}" has an issued json-ld {schema_name} credential {credential_data} from "{issuer}" with {key_type} and {sig_type}'
 )
-def step_impl(context, holder, schema_name, credential_data, issuer):
+def step_impl(context, holder, schema_name, credential_data, issuer, key_type, sig_type):
     context.execute_steps(
         '''
         Given "'''
         + issuer
         + """" is ready to issue a json-ld credential for """
         + schema_name
+        + " with "
+        + key_type
         + '''
         And "'''
         + holder
-        + """" is ready to receive a json-ld credential """
+        + """" is ready to receive a json-ld credential with """
+        + key_type
         + '''
         When "'''
         + issuer
@@ -655,6 +665,8 @@ def step_impl(context, holder, schema_name, credential_data, issuer):
         + holder
         + """" a json-ld credential with data """
         + credential_data
+        + " and "
+        + sig_type
         + '''
         Then "'''
         + holder
@@ -674,6 +686,25 @@ def step_impl(context, holder, schema_name, credential_data, issuer):
         + """" is ready to issue a credential for """
         + schema_name
         + '''
+        When "'''
+        + issuer
+        + """" offers a credential with data """
+        + credential_data
+        + '''
+        Then "'''
+        + holder
+        + """" has the credential issued
+    """
+    )
+
+
+@given(
+    '"{holder}" has another issued {schema_name} credential {credential_data} from "{issuer}"'
+)
+def step_impl(context, holder, schema_name, credential_data, issuer):
+    context.execute_steps(
+        # TODO possibly check that the requested schema is "active" (if there are multiple schemas)
+        '''
         When "'''
         + issuer
         + """" offers a credential with data """

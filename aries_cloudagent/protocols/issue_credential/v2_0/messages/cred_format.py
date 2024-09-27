@@ -3,9 +3,9 @@
 from collections import namedtuple
 from enum import Enum
 from typing import TYPE_CHECKING, Mapping, Sequence, Type, Union
-from uuid import uuid4
 
 from marshmallow import EXCLUDE, fields
+from uuid_utils import uuid4
 
 from .....messaging.decorators.attach_decorator import AttachDecorator
 from .....messaging.models.base import BaseModel, BaseModelSchema
@@ -41,16 +41,20 @@ class V20CredFormat(BaseModel):
         )
         """
         Once we switch to anoncreds this will replace the above INDY definition.
-        In the meantime there are some hardcoded references in the
-        "...formats.indy.handler.IndyCredFormatHandler" class.
-        INDY = FormatSpec(
-            "hlindy/",
-            V20CredExRecordIndy,
-            DeferLoad(
-                "aries_cloudagent.protocols.issue_credential.v2_0"
-                ".formats.anoncreds.handler.AnonCredsCredFormatHandler"
-            ),
-        )
+        
+        In the meantime there are some hardcoded references in the 
+            "...formats.indy.handler.IndyCredFormatHandler" class.
+        
+        ::
+        
+            INDY = FormatSpec(
+                "hlindy/",
+                V20CredExRecordIndy,
+                DeferLoad(
+                    "aries_cloudagent.protocols.issue_credential.v2_0"
+                    ".formats.anoncreds.handler.AnonCredsCredFormatHandler"
+                ),
+            )
         """
         LD_PROOF = FormatSpec(
             "aries/",
@@ -58,6 +62,15 @@ class V20CredFormat(BaseModel):
             DeferLoad(
                 "aries_cloudagent.protocols.issue_credential.v2_0"
                 ".formats.ld_proof.handler.LDProofCredFormatHandler"
+            ),
+        )
+
+        VC_DI = FormatSpec(
+            "didcomm/",
+            V20CredExRecordIndy,
+            DeferLoad(
+                "aries_cloudagent.protocols.issue_credential.v2_0"
+                ".formats.vc_di.handler.VCDICredFormatHandler"
             ),
         )
 

@@ -1,21 +1,19 @@
 """Classes for managing a revocation registry."""
 
+import hashlib
 import http
 import logging
 import os
 import re
-
 from os.path import join
 from pathlib import Path
 
+import base58
 from requests import Session
 from requests.exceptions import RequestException
 
 from ...indy.util import indy_client_dir
-
 from ..error import RevocationError
-import hashlib
-import base58
 
 LOGGER = logging.getLogger(__name__)
 
@@ -195,9 +193,7 @@ class RevocationRegistry:
             except OSError as err:
                 LOGGER.warning(f"Could not delete invalid tails file: {err}")
 
-            raise RevocationError(
-                "The hash of the downloaded tails file does not match."
-            )
+            raise RevocationError("The hash of the downloaded tails file does not match.")
 
         self.tails_local_path = str(tails_file_path)
         return self.tails_local_path

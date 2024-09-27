@@ -6,8 +6,7 @@ from .....messaging.models.base import BaseModelError
 from .....messaging.request_context import RequestContext
 from .....messaging.responder import BaseResponder
 from .....storage.error import StorageError
-from .....utils.tracing import trace_event, get_timer
-
+from .....utils.tracing import get_timer, trace_event
 from .. import problem_report_for_record
 from ..manager import V20PresManager
 from ..messages.pres_problem_report import ProblemReportReason
@@ -40,9 +39,7 @@ class V20PresProposalHandler(BaseHandler):
             )
         # If connection is present it must be ready for use
         elif not context.connection_ready:
-            raise HandlerException(
-                "Connection used for presentation proposal not ready"
-            )
+            raise HandlerException("Connection used for presentation proposal not ready")
 
         profile = context.profile
         pres_manager = V20PresManager(profile)

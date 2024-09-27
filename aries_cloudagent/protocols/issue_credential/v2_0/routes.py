@@ -14,6 +14,7 @@ from aiohttp_apispec import (
 )
 from marshmallow import ValidationError, fields, validate, validates_schema
 
+from ....admin.decorators.auth import tenant_authentication
 from ....admin.request_context import AdminRequestContext
 from ....anoncreds.holder import AnonCredsHolderError
 from ....anoncreds.issuer import AnonCredsIssuerError
@@ -25,6 +26,7 @@ from ....ledger.error import LedgerError
 from ....messaging.decorators.attach_decorator import AttachDecorator
 from ....messaging.models.base import BaseModelError
 from ....messaging.models.openapi import OpenAPISchema
+from ....messaging.models.paginated_query import PaginatedQuerySchema, get_limit_offset
 from ....messaging.valid import (
     INDY_CRED_DEF_ID_EXAMPLE,
     INDY_CRED_DEF_ID_VALIDATE,
@@ -62,7 +64,7 @@ class V20IssueCredentialModuleResponseSchema(OpenAPISchema):
     """Response schema for v2.0 Issue Credential Module."""
 
 
-class V20CredExRecordListQueryStringSchema(OpenAPISchema):
+class V20CredExRecordListQueryStringSchema(PaginatedQuerySchema):
     """Parameters and validators for credential exchange record list query."""
 
     connection_id = fields.Str(
@@ -108,6 +110,7 @@ class V20CredExRecordDetailSchema(OpenAPISchema):
 
     indy = fields.Nested(V20CredExRecordIndySchema, required=False)
     ld_proof = fields.Nested(V20CredExRecordLDProofSchema, required=False)
+    vc_di = fields.Nested(V20CredExRecordSchema, required=False)
 
 
 class V20CredExRecordListResultSchema(OpenAPISchema):
@@ -169,6 +172,46 @@ class V20CredFilterIndySchema(OpenAPISchema):
     )
 
 
+class V20CredFilterVCDISchema(OpenAPISchema):
+    """VCDI credential filtration criteria."""
+
+    cred_def_id = fields.Str(
+        required=False,
+        validate=INDY_CRED_DEF_ID_VALIDATE,
+        metadata={
+            "description": "Credential definition identifier",
+            "example": INDY_CRED_DEF_ID_EXAMPLE,
+        },
+    )
+    schema_id = fields.Str(
+        required=False,
+        validate=INDY_SCHEMA_ID_VALIDATE,
+        metadata={
+            "description": "Schema identifier",
+            "example": INDY_SCHEMA_ID_EXAMPLE,
+        },
+    )
+    schema_issuer_did = fields.Str(
+        required=False,
+        validate=INDY_DID_VALIDATE,
+        metadata={"description": "Schema issuer DID", "example": INDY_DID_EXAMPLE},
+    )
+    schema_name = fields.Str(
+        required=False,
+        metadata={"description": "Schema name", "example": "preferences"},
+    )
+    schema_version = fields.Str(
+        required=False,
+        validate=INDY_VERSION_VALIDATE,
+        metadata={"description": "Schema version", "example": INDY_VERSION_EXAMPLE},
+    )
+    issuer_did = fields.Str(
+        required=False,
+        validate=INDY_DID_VALIDATE,
+        metadata={"description": "Credential issuer DID", "example": INDY_DID_EXAMPLE},
+    )
+
+
 class V20CredFilterSchema(OpenAPISchema):
     """Credential filtration criteria."""
 
@@ -182,15 +225,21 @@ class V20CredFilterSchema(OpenAPISchema):
         required=False,
         metadata={"description": "Credential filter for linked data proof"},
     )
+    vc_di = fields.Nested(
+        V20CredFilterVCDISchema,
+        required=False,
+        metadata={"description": "Credential filter for vc_di"},
+    )
 
     @validates_schema
     def validate_fields(self, data, **kwargs):
         """Validate schema fields.
 
-        Data must have indy, ld_proof, or both.
+        Data must have indy, ld_proof, vc_di, or all.
 
         Args:
             data: The data to validate
+            kwargs: Additional keyword arguments
 
         Raises:
             ValidationError: if data has neither indy nor ld_proof
@@ -198,7 +247,7 @@ class V20CredFilterSchema(OpenAPISchema):
         """
         if not any(f.api in data for f in V20CredFormat.Format):
             raise ValidationError(
-                "V20CredFilterSchema requires indy, ld_proof, or both"
+                "V20CredFilterSchema requires indy, ld_proof, vc_di or all"
             )
 
 
@@ -239,11 +288,13 @@ class V20IssueCredSchemaCore(AdminAPIMessageTracingSchema):
 
     @validates_schema
     def validate(self, data, **kwargs):
-        """Make sure preview is present when indy format is present."""
+        """Make sure preview is present when indy/vc_di format is present."""
 
-        if data.get("filter", {}).get("indy") and not data.get("credential_preview"):
+        if (
+            data.get("filter", {}).get("indy") or data.get("filter", {}).get("vc_di")
+        ) and not data.get("credential_preview"):
             raise ValidationError(
-                "Credential preview is required if indy filter is present"
+                "Credential preview is required if indy or vc_di filter is present"
             )
 
 
@@ -495,6 +546,7 @@ def _format_result_with_details(
 )
 @querystring_schema(V20CredExRecordListQueryStringSchema)
 @response_schema(V20CredExRecordListResultSchema(), 200, description="")
+@tenant_authentication
 async def credential_exchange_list(request: web.BaseRequest):
     """Request handler for searching credential exchange records.
 
@@ -516,11 +568,15 @@ async def credential_exchange_list(request: web.BaseRequest):
         if request.query.get(k, "") != ""
     }
 
+    limit, offset = get_limit_offset(request)
+
     try:
         async with profile.session() as session:
             cred_ex_records = await V20CredExRecord.query(
                 session=session,
                 tag_filter=tag_filter,
+                limit=limit,
+                offset=offset,
                 post_filter_positive=post_filter,
             )
 
@@ -542,6 +598,7 @@ async def credential_exchange_list(request: web.BaseRequest):
 )
 @match_info_schema(V20CredExIdMatchInfoSchema())
 @response_schema(V20CredExRecordDetailSchema(), 200, description="")
+@tenant_authentication
 async def credential_exchange_retrieve(request: web.BaseRequest):
     """Request handler for fetching single credential exchange record.
 
@@ -589,6 +646,7 @@ async def credential_exchange_retrieve(request: web.BaseRequest):
 )
 @request_schema(V20IssueCredSchemaCore())
 @response_schema(V20CredExRecordSchema(), 200, description="")
+@tenant_authentication
 async def credential_exchange_create(request: web.BaseRequest):
     """Request handler for creating a credential from attr values.
 
@@ -621,9 +679,7 @@ async def credential_exchange_create(request: web.BaseRequest):
 
     try:
         # Not all formats use credential preview
-        cred_preview = (
-            V20CredPreview.deserialize(preview_spec) if preview_spec else None
-        )
+        cred_preview = V20CredPreview.deserialize(preview_spec) if preview_spec else None
         cred_proposal = V20CredProposal(
             comment=comment,
             credential_preview=cred_preview,
@@ -665,6 +721,7 @@ async def credential_exchange_create(request: web.BaseRequest):
 )
 @request_schema(V20CredExFreeSchema())
 @response_schema(V20CredExRecordSchema(), 200, description="")
+@tenant_authentication
 async def credential_exchange_send(request: web.BaseRequest):
     """Request handler for sending credential from issuer to holder from attr values.
 
@@ -705,9 +762,7 @@ async def credential_exchange_send(request: web.BaseRequest):
     cred_ex_record = None
     try:
         # Not all formats use credential preview
-        cred_preview = (
-            V20CredPreview.deserialize(preview_spec) if preview_spec else None
-        )
+        cred_preview = V20CredPreview.deserialize(preview_spec) if preview_spec else None
         async with profile.session() as session:
             conn_record = await ConnRecord.retrieve_by_id(session, connection_id)
         if not conn_record.is_ready:
@@ -781,6 +836,7 @@ async def credential_exchange_send(request: web.BaseRequest):
 )
 @request_schema(V20CredExFreeSchema())
 @response_schema(V20CredExRecordSchema(), 200, description="")
+@tenant_authentication
 async def credential_exchange_send_proposal(request: web.BaseRequest):
     """Request handler for sending credential proposal.
 
@@ -813,9 +869,7 @@ async def credential_exchange_send_proposal(request: web.BaseRequest):
     conn_record = None
     cred_ex_record = None
     try:
-        cred_preview = (
-            V20CredPreview.deserialize(preview_spec) if preview_spec else None
-        )
+        cred_preview = V20CredPreview.deserialize(preview_spec) if preview_spec else None
         async with profile.session() as session:
             conn_record = await ConnRecord.retrieve_by_id(session, connection_id)
         if not conn_record.is_ready:
@@ -907,6 +961,7 @@ async def _create_free_offer(
 )
 @request_schema(V20CredOfferConnFreeRequestSchema())
 @response_schema(V20CredExRecordSchema(), 200, description="")
+@tenant_authentication
 async def credential_exchange_create_free_offer(request: web.BaseRequest):
     """Request handler for creating free credential offer.
 
@@ -979,6 +1034,7 @@ async def credential_exchange_create_free_offer(request: web.BaseRequest):
 )
 @request_schema(V20CredOfferRequestSchema())
 @response_schema(V20CredExRecordSchema(), 200, description="")
+@tenant_authentication
 async def credential_exchange_send_free_offer(request: web.BaseRequest):
     """Request handler for sending free credential offer.
 
@@ -1071,6 +1127,7 @@ async def credential_exchange_send_free_offer(request: web.BaseRequest):
 @match_info_schema(V20CredExIdMatchInfoSchema())
 @request_schema(V20CredBoundOfferRequestSchema())
 @response_schema(V20CredExRecordSchema(), 200, description="")
+@tenant_authentication
 async def credential_exchange_send_bound_offer(request: web.BaseRequest):
     """Request handler for sending bound credential offer.
 
@@ -1182,6 +1239,7 @@ async def credential_exchange_send_bound_offer(request: web.BaseRequest):
 )
 @request_schema(V20CredRequestFreeSchema())
 @response_schema(V20CredExRecordSchema(), 200, description="")
+@tenant_authentication
 async def credential_exchange_send_free_request(request: web.BaseRequest):
     """Request handler for sending free credential request.
 
@@ -1280,6 +1338,7 @@ async def credential_exchange_send_free_request(request: web.BaseRequest):
 @match_info_schema(V20CredExIdMatchInfoSchema())
 @request_schema(V20CredRequestRequestSchema())
 @response_schema(V20CredExRecordSchema(), 200, description="")
+@tenant_authentication
 async def credential_exchange_send_bound_request(request: web.BaseRequest):
     """Request handler for sending credential request.
 
@@ -1399,6 +1458,7 @@ async def credential_exchange_send_bound_request(request: web.BaseRequest):
 @match_info_schema(V20CredExIdMatchInfoSchema())
 @request_schema(V20CredIssueRequestSchema())
 @response_schema(V20CredExRecordDetailSchema(), 200, description="")
+@tenant_authentication
 async def credential_exchange_issue(request: web.BaseRequest):
     """Request handler for sending credential.
 
@@ -1472,9 +1532,7 @@ async def credential_exchange_issue(request: web.BaseRequest):
             outbound_handler,
         )
 
-    await outbound_handler(
-        cred_issue_message, connection_id=cred_ex_record.connection_id
-    )
+    await outbound_handler(cred_issue_message, connection_id=cred_ex_record.connection_id)
 
     trace_event(
         context.settings,
@@ -1493,6 +1551,7 @@ async def credential_exchange_issue(request: web.BaseRequest):
 @match_info_schema(V20CredExIdMatchInfoSchema())
 @request_schema(V20CredStoreRequestSchema())
 @response_schema(V20CredExRecordDetailSchema(), 200, description="")
+@tenant_authentication
 async def credential_exchange_store(request: web.BaseRequest):
     """Request handler for storing credential.
 
@@ -1596,6 +1655,7 @@ async def credential_exchange_store(request: web.BaseRequest):
 )
 @match_info_schema(V20CredExIdMatchInfoSchema())
 @response_schema(V20IssueCredentialModuleResponseSchema(), 200, description="")
+@tenant_authentication
 async def credential_exchange_remove(request: web.BaseRequest):
     """Request handler for removing a credential exchange record.
 
@@ -1624,6 +1684,7 @@ async def credential_exchange_remove(request: web.BaseRequest):
 @match_info_schema(V20CredExIdMatchInfoSchema())
 @request_schema(V20CredIssueProblemReportRequestSchema())
 @response_schema(V20IssueCredentialModuleResponseSchema(), 200, description="")
+@tenant_authentication
 async def credential_exchange_problem_report(request: web.BaseRequest):
     """Request handler for sending problem report.
 

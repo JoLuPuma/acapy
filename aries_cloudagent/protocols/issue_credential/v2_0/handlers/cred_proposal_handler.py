@@ -8,8 +8,7 @@ from .....messaging.models.base import BaseModelError
 from .....messaging.request_context import RequestContext
 from .....messaging.responder import BaseResponder
 from .....storage.error import StorageError
-from .....utils.tracing import trace_event, get_timer
-
+from .....utils.tracing import get_timer, trace_event
 from .. import problem_report_for_record
 from ..manager import V20CredManager, V20CredManagerError
 from ..messages.cred_problem_report import ProblemReportReason
@@ -40,9 +39,7 @@ class V20CredProposalHandler(BaseHandler):
         if context.connection_record and not context.connection_ready:
             raise HandlerException("Connection used for credential proposal not ready")
         elif not context.connection_record:
-            raise HandlerException(
-                "Connectionless not supported for credential proposal"
-            )
+            raise HandlerException("Connectionless not supported for credential proposal")
 
         profile = context.profile
         cred_manager = V20CredManager(profile)

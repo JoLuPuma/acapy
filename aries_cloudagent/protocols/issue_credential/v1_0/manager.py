@@ -38,9 +38,7 @@ from .messages.credential_problem_report import (
 from .messages.credential_proposal import CredentialProposal
 from .messages.credential_request import CredentialRequest
 from .messages.inner.credential_preview import CredentialPreview
-from .models.credential_exchange import (
-    V10CredentialExchange,
-)
+from .models.credential_exchange import V10CredentialExchange
 
 LOGGER = logging.getLogger(__name__)
 
@@ -97,6 +95,7 @@ class CredentialManager:
             connection_id: Connection to create offer for
             credential_proposal: The credential proposal with preview
             auto_remove: Flag to automatically remove the record on completion
+            comment: Optional human-readable comment to set in offer message
 
         Returns:
             A tuple of the new credential exchange record and credential offer message
@@ -152,6 +151,7 @@ class CredentialManager:
             schema_version: Schema version for credential proposal
             cred_def_id: Credential definition id for credential proposal
             issuer_did: Issuer DID for credential proposal
+            trace: Whether to trace the operation
 
         Returns:
             Resulting credential exchange record including credential proposal
@@ -167,9 +167,7 @@ class CredentialManager:
             cred_def_id=cred_def_id,
             issuer_did=issuer_did,
         )
-        credential_proposal_message.assign_trace_decorator(
-            self._profile.settings, trace
-        )
+        credential_proposal_message.assign_trace_decorator(self._profile.settings, trace)
 
         if auto_remove is None:
             auto_remove = not self._profile.settings.get("preserve_exchange_records")
@@ -229,6 +227,7 @@ class CredentialManager:
 
         Args:
             cred_ex_record: Credential exchange to create offer for
+            counter_proposal: optional proposal to counter
             comment: optional human-readable comment to set in offer message
 
         Returns:
@@ -347,15 +346,13 @@ class CredentialManager:
             # Get credential exchange record (holder sent proposal first)
             # or create it (issuer sent offer first)
             try:
-                cred_ex_record = (
-                    await (
-                        V10CredentialExchange.retrieve_by_connection_and_thread(
-                            txn,
-                            connection_id,
-                            message._thread_id,
-                            role=V10CredentialExchange.ROLE_HOLDER,
-                            for_update=True,
-                        )
+                cred_ex_record = await (
+                    V10CredentialExchange.retrieve_by_connection_and_thread(
+                        txn,
+                        connection_id,
+                        message._thread_id,
+                        role=V10CredentialExchange.ROLE_HOLDER,
+                        for_update=True,
                     )
                 )
             except StorageNotFoundError:  # issuer sent this offer free of any proposal
@@ -512,10 +509,17 @@ class CredentialManager:
         """Receive a credential request.
 
         Args:
-            credential_request_message: Credential request to receive
+            message (CredentialRequest): The credential request message to receive.
+            connection_record (Optional[ConnRecord]): The connection record associated
+                with the request.
+            oob_record (Optional[OobRecord]): The out-of-band record associated with the
+                request.
 
         Returns:
-            credential exchange record, retrieved and updated
+            V10CredentialExchange: The credential exchange record, retrieved and updated.
+
+        Raises:
+            StorageNotFoundError: If the credential exchange record is not found.
 
         """
         assert len(message.requests_attach or []) == 1
@@ -528,15 +532,13 @@ class CredentialManager:
 
         async with self._profile.transaction() as txn:
             try:
-                cred_ex_record = (
-                    await (
-                        V10CredentialExchange.retrieve_by_connection_and_thread(
-                            txn,
-                            connection_id,
-                            message._thread_id,
-                            role=V10CredentialExchange.ROLE_ISSUER,
-                            for_update=True,
-                        )
+                cred_ex_record = await (
+                    V10CredentialExchange.retrieve_by_connection_and_thread(
+                        txn,
+                        connection_id,
+                        message._thread_id,
+                        role=V10CredentialExchange.ROLE_ISSUER,
+                        for_update=True,
                     )
                 )
             except StorageNotFoundError as ex:
@@ -576,6 +578,7 @@ class CredentialManager:
             cred_ex_record: The credential exchange record
                 for which to issue a credential
             comment: optional human-readable comment pertaining to credential issue
+            retries: how many times to retry on error
 
         Returns:
             Tuple: (Updated credential exchange record, credential message)
@@ -639,9 +642,7 @@ class CredentialManager:
 
                 if revocable:
                     revoc = IndyRevocation(self._profile)
-                    registry_info = await revoc.get_or_create_active_registry(
-                        cred_def_id
-                    )
+                    registry_info = await revoc.get_or_create_active_registry(cred_def_id)
                     if not registry_info:
                         continue
                     del revoc
@@ -739,15 +740,13 @@ class CredentialManager:
 
         async with self._profile.transaction() as txn:
             try:
-                cred_ex_record = (
-                    await (
-                        V10CredentialExchange.retrieve_by_connection_and_thread(
-                            txn,
-                            connection_id,
-                            message._thread_id,
-                            role=V10CredentialExchange.ROLE_HOLDER,
-                            for_update=True,
-                        )
+                cred_ex_record = await (
+                    V10CredentialExchange.retrieve_by_connection_and_thread(
+                        txn,
+                        connection_id,
+                        message._thread_id,
+                        role=V10CredentialExchange.ROLE_HOLDER,
+                        for_update=True,
                     )
                 )
             except StorageNotFoundError:
@@ -944,15 +943,13 @@ class CredentialManager:
         """
         async with self._profile.transaction() as txn:
             try:
-                cred_ex_record = (
-                    await (
-                        V10CredentialExchange.retrieve_by_connection_and_thread(
-                            txn,
-                            connection_id,
-                            message._thread_id,
-                            role=V10CredentialExchange.ROLE_ISSUER,
-                            for_update=True,
-                        )
+                cred_ex_record = await (
+                    V10CredentialExchange.retrieve_by_connection_and_thread(
+                        txn,
+                        connection_id,
+                        message._thread_id,
+                        role=V10CredentialExchange.ROLE_ISSUER,
+                        for_update=True,
                     )
                 )
             except StorageNotFoundError:
@@ -985,11 +982,9 @@ class CredentialManager:
         """
         async with self._profile.transaction() as txn:
             try:
-                cred_ex_record = (
-                    await (
-                        V10CredentialExchange.retrieve_by_connection_and_thread(
-                            txn, connection_id, message._thread_id, for_update=True
-                        )
+                cred_ex_record = await (
+                    V10CredentialExchange.retrieve_by_connection_and_thread(
+                        txn, connection_id, message._thread_id, for_update=True
                     )
                 )
             except StorageNotFoundError:

@@ -1,11 +1,10 @@
 from datetime import datetime, timedelta
-from unittest import IsolatedAsyncioTestCase
-from unittest import mock
+from unittest import IsolatedAsyncioTestCase, mock
 
 from ....tests.data import TEST_VC_DOCUMENT_SIGNED_DID_KEY_ED25519
 from ....tests.document_loader import custom_document_loader
-from ..proof_purpose import ProofPurpose
 from ..controller_proof_purpose import ControllerProofPurpose
+from ..proof_purpose import ProofPurpose
 
 
 class TestControllerProofPurpose(IsolatedAsyncioTestCase):
@@ -34,9 +33,7 @@ class TestControllerProofPurpose(IsolatedAsyncioTestCase):
         proof = document.pop("proof")
         suite = mock.MagicMock()
         verification_method = {
-            "id": TEST_VC_DOCUMENT_SIGNED_DID_KEY_ED25519["proof"][
-                "verificationMethod"
-            ],
+            "id": TEST_VC_DOCUMENT_SIGNED_DID_KEY_ED25519["proof"]["verificationMethod"],
             "controller": TEST_VC_DOCUMENT_SIGNED_DID_KEY_ED25519["issuer"],
         }
 
@@ -57,9 +54,7 @@ class TestControllerProofPurpose(IsolatedAsyncioTestCase):
         proof = document.pop("proof")
         suite = mock.MagicMock()
         verification_method = {
-            "id": TEST_VC_DOCUMENT_SIGNED_DID_KEY_ED25519["proof"][
-                "verificationMethod"
-            ],
+            "id": TEST_VC_DOCUMENT_SIGNED_DID_KEY_ED25519["proof"]["verificationMethod"],
             "controller": 10,
         }
 
@@ -81,9 +76,7 @@ class TestControllerProofPurpose(IsolatedAsyncioTestCase):
         proof = document.pop("proof")
         suite = mock.MagicMock()
         verification_method = {
-            "id": TEST_VC_DOCUMENT_SIGNED_DID_KEY_ED25519["proof"][
-                "verificationMethod"
-            ],
+            "id": TEST_VC_DOCUMENT_SIGNED_DID_KEY_ED25519["proof"]["verificationMethod"],
             "controller": "did:example:489398593",
         }
 

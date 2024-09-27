@@ -1,25 +1,35 @@
 """Legacy Indy Registry."""
 
-import json
+import asyncio
 import logging
 import re
-import uuid
 from asyncio import shield
 from typing import List, Optional, Pattern, Sequence, Tuple
 
+from anoncreds import (
+    CredentialDefinition,
+    RevocationRegistryDefinition,
+    RevocationRegistryDefinitionPrivate,
+)
 from base58 import alphabet
+from uuid_utils import uuid4
 
 from ....anoncreds.default.legacy_indy.author import get_endorser_info
 from ....cache.base import BaseCache
 from ....config.injection_context import InjectionContext
-from ....core.profile import Profile
+from ....core.event_bus import EventBus
+from ....core.profile import Profile, ProfileSession
 from ....ledger.base import BaseLedger
 from ....ledger.error import (
     LedgerError,
     LedgerObjectAlreadyExistsError,
     LedgerTransactionError,
 )
-from ....ledger.merkel_validation.constants import GET_SCHEMA
+from ....ledger.merkel_validation.constants import (
+    GET_REVOC_REG_DELTA,
+    GET_REVOC_REG_ENTRY,
+    GET_SCHEMA,
+)
 from ....ledger.multiple_ledger.ledger_requests_executor import (
     GET_CRED_DEF,
     IndyLedgerRequestsExecutor,
@@ -31,10 +41,7 @@ from ....protocols.endorse_transaction.v1_0.manager import (
     TransactionManagerError,
 )
 from ....protocols.endorse_transaction.v1_0.util import is_author_role
-from ....revocation_anoncreds.models.issuer_cred_rev_record import (
-    IssuerCredRevRecord,
-)
-from ....revocation_anoncreds.recover import generate_ledger_rrrecovery_txn
+from ....revocation_anoncreds.models.issuer_cred_rev_record import IssuerCredRevRecord
 from ....storage.error import StorageError
 from ....utils import sentinel
 from ....wallet.did_info import DIDInfo
@@ -47,7 +54,8 @@ from ...base import (
     BaseAnonCredsRegistrar,
     BaseAnonCredsResolver,
 )
-from ...issuer import AnonCredsIssuer, AnonCredsIssuerError
+from ...events import RevListFinishedEvent
+from ...issuer import CATEGORY_CRED_DEF, AnonCredsIssuer, AnonCredsIssuerError
 from ...models.anoncreds_cred_def import (
     CredDef,
     CredDefResult,
@@ -72,11 +80,28 @@ from ...models.anoncreds_schema import (
     SchemaResult,
     SchemaState,
 )
+from ...revocation import (
+    CATEGORY_REV_LIST,
+    CATEGORY_REV_REG_DEF,
+    CATEGORY_REV_REG_DEF_PRIVATE,
+)
+from .recover import generate_ledger_rrrecovery_txn
 
 LOGGER = logging.getLogger(__name__)
 
+# Defaults
 DEFAULT_CRED_DEF_TAG = "default"
 DEFAULT_SIGNATURE_TYPE = "CL"
+
+# Common error messages
+NO_LEDGER_AVAILABLE_MSG = "No ledger available"
+MISSING_WALLET_TYPE_MSG = ": missing wallet-type?"
+TRANSACTION_MANAGER_FAILED_MSG = "Transaction manager failed to create request: "
+FAILED_TO_STORE_TRANSACTION_RECORD = "Failed to store transaction record"
+
+# Common settings
+ENDORSER_AUTO = "endorser.auto_request"
+WALLET_TYPE = "wallet.type"
 
 
 class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
@@ -86,12 +111,15 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
         """Initialize an instance.
 
         Args:
-        TODO: update this docstring - Anoncreds-break.
+            None
 
         """
         B58 = alphabet if isinstance(alphabet, str) else alphabet.decode("ascii")
         INDY_DID = rf"^(did:sov:)?[{B58}]{{21,22}}$"
         INDY_SCHEMA_ID = rf"^[{B58}]{{21,22}}:2:.+:[0-9.]+$"
+        # the schema id can be just a number
+        # (this is how the schema_id is referenced in a cred def)
+        INDY_SCHEMA_TXN_ID = r"^[0-9.]+$"
         INDY_CRED_DEF_ID = (
             rf"^([{B58}]{{21,22}})"  # issuer DID
             f":3"  # cred def id marker
@@ -106,7 +134,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
             rf"CL_ACCUM:(.+$)"
         )
         self._supported_identifiers_regex = re.compile(
-            rf"{INDY_DID}|{INDY_SCHEMA_ID}|{INDY_CRED_DEF_ID}|{INDY_REV_REG_DEF_ID}"
+            rf"{INDY_DID}|{INDY_SCHEMA_ID}|{INDY_SCHEMA_TXN_ID}|{INDY_CRED_DEF_ID}|{INDY_REV_REG_DEF_ID}"
         )
 
     @property
@@ -163,9 +191,9 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
         )
 
         if not ledger:
-            reason = "No ledger available"
-            if not profile.settings.get_value("wallet.type"):
-                reason += ": missing wallet-type?"
+            reason = NO_LEDGER_AVAILABLE_MSG
+            if not profile.settings.get_value(WALLET_TYPE):
+                reason += MISSING_WALLET_TYPE_MSG
             raise AnonCredsResolutionError(reason)
 
         async with ledger:
@@ -177,14 +205,14 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                         {"ledger_id": ledger_id},
                     )
 
-                anonscreds_schema = AnonCredsSchema(
+                anoncreds_schema = AnonCredsSchema(
                     issuer_id=schema["id"].split(":")[0],
                     attr_names=schema["attrNames"],
                     name=schema["name"],
                     version=schema["version"],
                 )
                 result = GetSchemaResult(
-                    schema=anonscreds_schema,
+                    schema=anoncreds_schema,
                     schema_id=schema["id"],
                     resolution_metadata={"ledger_id": ledger_id},
                     schema_metadata={"seqNo": schema["seqNo"]},
@@ -207,7 +235,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
         # Assume endorser role on the network, no option for 3rd-party endorser
         ledger = profile.inject_or(BaseLedger)
         if not ledger:
-            raise AnonCredsRegistrationError("No ledger available")
+            raise AnonCredsRegistrationError(NO_LEDGER_AVAILABLE_MSG)
 
         # Translate schema into format expected by Indy
         LOGGER.debug("Registering schema: %s", schema_id)
@@ -229,9 +257,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                 profile, options
             )
 
-        write_ledger = (
-            True if endorser_did is None and not create_transaction else False
-        )
+        write_ledger = True if endorser_did is None and not create_transaction else False
 
         # Get either the transaction or the seq_no or the created schema
         async with ledger:
@@ -265,7 +291,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
         # Need endorsement, so execute transaction flow
         (schema_id, schema_def) = result
 
-        job_id = uuid.uuid4().hex
+        job_id = uuid4().hex
         meta_data = {"context": {"job_id": job_id, "schema_id": schema_id}}
 
         transaction_manager = TransactionManager(profile)
@@ -276,9 +302,9 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                 meta_data=meta_data,
             )
         except StorageError:
-            raise AnonCredsRegistrationError("Failed to store transaction record")
+            raise AnonCredsRegistrationError(FAILED_TO_STORE_TRANSACTION_RECORD)
 
-        if profile.settings.get("endorser.auto_request"):
+        if profile.settings.get(ENDORSER_AUTO):
             try:
                 (
                     transaction,
@@ -286,7 +312,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                 ) = await transaction_manager.create_request(transaction=transaction)
             except (StorageError, TransactionManagerError) as err:
                 raise AnonCredsRegistrationError(
-                    "Transaction manager failed to create request: " + err.roll_up
+                    TRANSACTION_MANAGER_FAILED_MSG + err.roll_up
                 ) from err
 
             responder = profile.inject(BaseResponder)
@@ -324,9 +350,9 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
             txn_record_type=GET_CRED_DEF,
         )
         if not ledger:
-            reason = "No ledger available"
-            if not profile.settings.get_value("wallet.type"):
-                reason += ": missing wallet-type?"
+            reason = NO_LEDGER_AVAILABLE_MSG
+            if not profile.settings.get_value(WALLET_TYPE):
+                reason += MISSING_WALLET_TYPE_MSG
             raise AnonCredsResolutionError(reason)
 
         async with ledger:
@@ -367,7 +393,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
 
         ledger = profile.inject_or(BaseLedger)
         if not ledger:
-            raise AnonCredsRegistrationError("No ledger available")
+            raise AnonCredsRegistrationError(NO_LEDGER_AVAILABLE_MSG)
 
         # Check if in wallet but not on ledger
         issuer = AnonCredsIssuer(profile)
@@ -400,9 +426,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                 profile, options
             )
 
-        write_ledger = (
-            True if endorser_did is None and not create_transaction else False
-        )
+        write_ledger = True if endorser_did is None and not create_transaction else False
 
         async with ledger:
             try:
@@ -443,7 +467,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
             )
 
         # Need endorsement, so execute transaction flow
-        job_id = uuid.uuid4().hex
+        job_id = uuid4().hex
 
         meta_data = {
             "context": {
@@ -463,9 +487,9 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                 meta_data=meta_data,
             )
         except StorageError:
-            raise AnonCredsRegistrationError("Failed to store transaction record")
+            raise AnonCredsRegistrationError(FAILED_TO_STORE_TRANSACTION_RECORD)
 
-        if profile.settings.get("endorser.auto_request"):
+        if profile.settings.get(ENDORSER_AUTO):
             try:
                 (
                     transaction,
@@ -473,7 +497,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                 ) = await transaction_manager.create_request(transaction=transaction)
             except (StorageError, TransactionManagerError) as err:
                 raise AnonCredsRegistrationError(
-                    "Transaction manager failed to create request: " + err.roll_up
+                    TRANSACTION_MANAGER_FAILED_MSG + err.roll_up
                 ) from err
 
             responder = profile.inject(BaseResponder)
@@ -511,9 +535,9 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
             txn_record_type=GET_CRED_DEF,
         )
         if not ledger:
-            reason = "No ledger available"
-            if not profile.settings.get_value("wallet.type"):
-                reason += ": missing wallet-type?"
+            reason = NO_LEDGER_AVAILABLE_MSG
+            if not profile.settings.get_value(WALLET_TYPE):
+                reason += MISSING_WALLET_TYPE_MSG
             raise AnonCredsResolutionError(reason)
 
         async with ledger:
@@ -555,7 +579,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
 
         ledger = profile.inject(BaseLedger)
         if not ledger:
-            raise AnonCredsRegistrationError("No ledger available")
+            raise AnonCredsRegistrationError(NO_LEDGER_AVAILABLE_MSG)
 
         # Translate anoncreds object to indy object
         indy_rev_reg_def = {
@@ -583,9 +607,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                 profile, options
             )
 
-        write_ledger = (
-            True if endorser_did is None and not create_transaction else False
-        )
+        write_ledger = True if endorser_did is None and not create_transaction else False
 
         try:
             async with ledger:
@@ -596,7 +618,9 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                     endorser_did=endorser_did,
                 )
         except LedgerError as err:
-            raise AnonCredsRegistrationError(err.roll_up) from err
+            LOGGER.error(
+                f"Error registering revocation registry definition {rev_reg_def_id}: {err.roll_up}"  # noqa: E501
+            )
 
         # Didn't need endorsement
         if write_ledger:
@@ -614,7 +638,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
         # Need endorsement, so execute transaction flow
         (rev_reg_def_id, reg_rev_def) = result
 
-        job_id = uuid.uuid4().hex
+        job_id = uuid4().hex
         meta_data = {
             "context": {
                 "job_id": job_id,
@@ -631,9 +655,9 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                 meta_data=meta_data,
             )
         except StorageError:
-            raise AnonCredsRegistrationError("Failed to store transaction record")
+            raise AnonCredsRegistrationError(FAILED_TO_STORE_TRANSACTION_RECORD)
 
-        if profile.settings.get("endorser.auto_request"):
+        if profile.settings.get(ENDORSER_AUTO):
             try:
                 (
                     transaction,
@@ -641,7 +665,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                 ) = await transaction_manager.create_request(transaction=transaction)
             except (StorageError, TransactionManagerError) as err:
                 raise AnonCredsRegistrationError(
-                    "Transaction manager failed to create request: " + err.roll_up
+                    TRANSACTION_MANAGER_FAILED_MSG + err.roll_up
                 ) from err
 
             responder = profile.inject(BaseResponder)
@@ -690,7 +714,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
 
     def _indexes_to_bit_array(self, indexes: List[int], size: int) -> List[int]:
         """Turn a sequence of indexes into a full state bit array."""
-        return [1 if index in indexes else 0 for index in range(1, size + 1)]
+        return [1 if index in indexes else 0 for index in range(0, size + 1)]
 
     async def _get_ledger(self, profile: Profile, rev_reg_def_id: str):
         async with profile.session() as session:
@@ -705,22 +729,26 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
             txn_record_type=GET_CRED_DEF,
         )
         if not ledger:
-            reason = "No ledger available"
-            if not profile.settings.get_value("wallet.type"):
-                reason += ": missing wallet-type?"
+            reason = NO_LEDGER_AVAILABLE_MSG
+            if not profile.settings.get_value(WALLET_TYPE):
+                reason += MISSING_WALLET_TYPE_MSG
             raise AnonCredsResolutionError(reason)
 
         return ledger_id, ledger
 
     async def get_revocation_registry_delta(
-        self, profile: Profile, rev_reg_def_id: str, timestamp: None
+        self,
+        profile: Profile,
+        rev_reg_def_id: str,
+        timestamp_from: Optional[int] = 0,
+        timestamp_to: Optional[int] = None,
     ) -> Tuple[dict, int]:
         """Fetch the revocation registry delta."""
         ledger_id, ledger = await self._get_ledger(profile, rev_reg_def_id)
 
         async with ledger:
             delta, timestamp = await ledger.get_revoc_reg_delta(
-                rev_reg_def_id, timestamp_to=timestamp
+                rev_reg_def_id, timestamp_from=timestamp_from, timestamp_to=timestamp_to
             )
 
             if delta is None:
@@ -732,13 +760,17 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
         return delta, timestamp
 
     async def get_revocation_list(
-        self, profile: Profile, rev_reg_def_id: str, timestamp: int
+        self,
+        profile: Profile,
+        rev_reg_def_id: str,
+        timestamp_from: Optional[int] = 0,
+        timestamp_to: Optional[int] = None,
     ) -> GetRevListResult:
         """Get the revocation registry list."""
         _, ledger = await self._get_ledger(profile, rev_reg_def_id)
 
         delta, timestamp = await self.get_revocation_registry_delta(
-            profile, rev_reg_def_id, timestamp
+            profile, rev_reg_def_id, timestamp_from, timestamp_to
         )
 
         async with ledger:
@@ -776,8 +808,15 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
         endorser_did: str = None,
     ) -> dict:
         """Send a revocation registry entry to the ledger with fixes if needed."""
-        # TODO Handle multitenancy and multi-ledger (like in get cred def)
-        ledger = profile.inject(BaseLedger)
+        multitenant_mgr = profile.inject_or(BaseMultitenantManager)
+        if multitenant_mgr:
+            ledger_exec_inst = IndyLedgerRequestsExecutor(profile)
+        else:
+            ledger_exec_inst = profile.inject(IndyLedgerRequestsExecutor)
+        _, ledger = await ledger_exec_inst.get_ledger_for_identifier(
+            rev_list.rev_reg_def_id,
+            txn_record_type=GET_REVOC_REG_ENTRY,
+        )
 
         try:
             async with ledger:
@@ -817,7 +856,6 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                     "Ledger update failed due to TAA Issue"
                 ) from err
             else:
-                # not sure what happened, raise an error
                 LOGGER.exception("Ledger update failed due to unknown issue")
                 raise AnonCredsRegistrationError(
                     "Ledger update failed due to unknown issue"
@@ -846,9 +884,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                 profile, options
             )
 
-        write_ledger = (
-            True if endorser_did is None and not create_transaction else False
-        )
+        write_ledger = True if endorser_did is None and not create_transaction else False
 
         result = await self._revoc_reg_entry_with_fix(
             profile,
@@ -872,7 +908,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
 
         (rev_reg_def_id, requested_txn) = result
 
-        job_id = uuid.uuid4().hex
+        job_id = uuid4().hex
         meta_data = {
             "context": {
                 "job_id": job_id,
@@ -892,9 +928,9 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                 meta_data=meta_data,
             )
         except StorageError:
-            raise AnonCredsRegistrationError("Failed to store transaction record")
+            raise AnonCredsRegistrationError(FAILED_TO_STORE_TRANSACTION_RECORD)
 
-        if profile.settings.get("endorser.auto_request"):
+        if profile.settings.get(ENDORSER_AUTO):
             try:
                 (
                     transaction,
@@ -902,7 +938,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                 ) = await transaction_manager.create_request(transaction=transaction)
             except (StorageError, TransactionManagerError) as err:
                 raise AnonCredsRegistrationError(
-                    "Transaction manager failed to create request: " + err.roll_up
+                    TRANSACTION_MANAGER_FAILED_MSG + err.roll_up
                 ) from err
 
             responder = profile.inject(BaseResponder)
@@ -952,9 +988,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                 profile, options
             )
 
-        write_ledger = (
-            True if endorser_did is None and not create_transaction else False
-        )
+        write_ledger = True if endorser_did is None and not create_transaction else False
 
         result = await self._revoc_reg_entry_with_fix(
             profile,
@@ -966,6 +1000,13 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
         )
 
         if write_ledger:
+            event_bus = profile.inject(EventBus)
+            await event_bus.notify(
+                profile,
+                RevListFinishedEvent.with_payload(
+                    curr_list.rev_reg_def_id, newly_revoked_indices
+                ),
+            )
             return RevListResult(
                 job_id=None,
                 revocation_list_state=RevListState(
@@ -978,11 +1019,12 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
 
         (rev_reg_def_id, requested_txn) = result
 
-        job_id = uuid.uuid4().hex
+        job_id = uuid4().hex
         meta_data = {
             "context": {
                 "job_id": job_id,
                 "rev_reg_def_id": rev_reg_def_id,
+                "rev_list": curr_list.serialize(),
                 "options": {
                     "endorser_connection_id": endorser_connection_id,
                     "create_transaction_for_endorser": create_transaction,
@@ -998,9 +1040,9 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                 meta_data=meta_data,
             )
         except StorageError:
-            raise AnonCredsRegistrationError("Failed to store transaction record")
+            raise AnonCredsRegistrationError(FAILED_TO_STORE_TRANSACTION_RECORD)
 
-        if profile.settings.get("endorser.auto_request"):
+        if profile.settings.get(ENDORSER_AUTO):
             try:
                 (
                     transaction,
@@ -1008,7 +1050,7 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
                 ) = await transaction_manager.create_request(transaction=transaction)
             except (StorageError, TransactionManagerError) as err:
                 raise AnonCredsRegistrationError(
-                    "Transaction manager failed to create request: " + err.roll_up
+                    TRANSACTION_MANAGER_FAILED_MSG + err.roll_up
                 ) from err
 
             responder = profile.inject(BaseResponder)
@@ -1039,64 +1081,52 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
         endorser_did: str = None,
     ) -> Tuple[dict, dict, dict]:
         """Fix the ledger entry to match wallet-recorded credentials."""
-        # get rev reg delta (revocations published to ledger)
-        ledger = profile.inject(BaseLedger)
-        async with ledger:
-            (rev_reg_delta, _) = await ledger.get_revoc_reg_delta(
-                rev_list.rev_reg_def_id
+
+        def _wallet_accumalator_matches_ledger_list(
+            rev_list: RevList, rev_reg_delta: dict
+        ) -> bool:
+            return (
+                rev_reg_delta.get("value")
+                and rev_list.current_accumulator == rev_reg_delta["value"]["accum"]
             )
 
-        # get rev reg records from wallet (revocations and list)
-        recs = []
-        rec_count = 0
-        accum_count = 0
-        recovery_txn = {}
         applied_txn = {}
+        recovery_txn = {}
+
+        LOGGER.debug("Fixing ledger entry for revocation list...")
+
+        multitenant_mgr = profile.inject_or(BaseMultitenantManager)
+        if multitenant_mgr:
+            ledger_exec_inst = IndyLedgerRequestsExecutor(profile)
+        else:
+            ledger_exec_inst = profile.inject(IndyLedgerRequestsExecutor)
+        _, ledger = await ledger_exec_inst.get_ledger_for_identifier(
+            rev_list.rev_reg_def_id,
+            txn_record_type=GET_REVOC_REG_DELTA,
+        )
+
+        async with ledger:
+            (rev_reg_delta, _) = await ledger.get_revoc_reg_delta(rev_list.rev_reg_def_id)
+
         async with profile.session() as session:
-            recs = await IssuerCredRevRecord.query_by_ids(
-                session, rev_reg_id=rev_list.rev_reg_def_id
+            LOGGER.debug(f"revocation_list = {rev_list.revocation_list}")
+            LOGGER.debug(f"rev_reg_delta = {rev_reg_delta.get('value')}")
+
+            rev_list = await self._sync_wallet_rev_list_with_issuer_cred_rev_records(
+                session, rev_list
             )
 
-            revoked_ids = []
-            for rec in recs:
-                if rec.state == IssuerCredRevRecord.STATE_REVOKED:
-                    revoked_ids.append(int(rec.cred_rev_id))
-                    if int(rec.cred_rev_id) not in rev_reg_delta["value"]["revoked"]:
-                        # await rec.set_state(session, IssuerCredRevRecord.STATE_ISSUED)
-                        rec_count += 1
-
-            LOGGER.debug(">>> fixed entry recs count = %s", rec_count)
-            LOGGER.debug(
-                ">>> rev_list.revocation_list: %s",
-                rev_list.revocation_list,
-            )
-            LOGGER.debug(
-                '>>> rev_reg_delta.get("value"): %s', rev_reg_delta.get("value")
-            )
-
-            # if we had any revocation discrepencies, check the accumulator value
-            if rec_count > 0:
-                if (rev_list.current_accumulator and rev_reg_delta.get("value")) and (
-                    rev_list.current_accumulator != rev_reg_delta["value"]["accum"]
-                ):
-                    # self.revoc_reg_entry = rev_reg_delta["value"]
-                    # await self.save(session)
-                    accum_count += 1
-
-                calculated_txn = await generate_ledger_rrrecovery_txn(
-                    genesis_transactions,
-                    rev_list.rev_reg_def_id,
-                    revoked_ids,
+            if not _wallet_accumalator_matches_ledger_list(rev_list, rev_reg_delta):
+                recovery_txn = await generate_ledger_rrrecovery_txn(
+                    genesis_transactions, rev_list
                 )
-                recovery_txn = json.loads(calculated_txn.to_json())
 
-                LOGGER.debug(">>> apply_ledger_update = %s", apply_ledger_update)
-                if apply_ledger_update:
+                if apply_ledger_update and recovery_txn:
                     ledger = session.inject_or(BaseLedger)
                     if not ledger:
-                        reason = "No ledger available"
-                        if not session.context.settings.get_value("wallet.type"):
-                            reason += ": missing wallet-type?"
+                        reason = NO_LEDGER_AVAILABLE_MSG
+                        if not session.context.settings.get_value(WALLET_TYPE):
+                            reason += MISSING_WALLET_TYPE_MSG
                         raise LedgerError(reason=reason)
 
                     async with ledger:
@@ -1111,9 +1141,73 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
 
         return (rev_reg_delta, recovery_txn, applied_txn)
 
+    async def _sync_wallet_rev_list_with_issuer_cred_rev_records(
+        self, session: ProfileSession, rev_list: RevList
+    ) -> RevList:
+        """Sync the wallet revocation list with the issuer cred rev records."""
+
+        async def _revoked_issuer_cred_rev_record_ids() -> List[int]:
+            cred_rev_records = await IssuerCredRevRecord.query_by_ids(
+                session, rev_reg_id=rev_list.rev_reg_def_id
+            )
+            return [
+                int(rec.cred_rev_id) for rec in cred_rev_records if rec.state == "revoked"
+            ]
+
+        def _revocation_list_to_array_of_indexes(
+            revocation_list: List[int],
+        ) -> List[int]:
+            return [index for index, value in enumerate(revocation_list) if value == 1]
+
+        revoked = await _revoked_issuer_cred_rev_record_ids()
+        if revoked == _revocation_list_to_array_of_indexes(rev_list.revocation_list):
+            return rev_list
+
+        # The revocation list is out of sync with the issuer cred rev records
+        # Recreate the revocation list with the issuer cred rev records
+        revoc_reg_def_entry = await session.handle.fetch(
+            CATEGORY_REV_REG_DEF, rev_list.rev_reg_def_id
+        )
+        cred_def_entry = await session.handle.fetch(
+            CATEGORY_CRED_DEF,
+            RevRegDef.deserialize(revoc_reg_def_entry.value_json).cred_def_id,
+        )
+        revoc_reg_def_private_entry = await session.handle.fetch(
+            CATEGORY_REV_REG_DEF_PRIVATE, rev_list.rev_reg_def_id
+        )
+        updated_list = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: rev_list.to_native().update(
+                cred_def=CredentialDefinition.load(cred_def_entry.value_json),
+                rev_reg_def=RevocationRegistryDefinition.load(
+                    revoc_reg_def_entry.value_json
+                ),
+                rev_reg_def_private=RevocationRegistryDefinitionPrivate.load(
+                    revoc_reg_def_private_entry.raw_value
+                ),
+                issued=None,
+                revoked=revoked,
+                timestamp=None,
+            ),
+        )
+        rev_list_entry_update = await session.handle.fetch(
+            CATEGORY_REV_LIST, rev_list.rev_reg_def_id, for_update=True
+        )
+        tags = rev_list_entry_update.tags
+        rev_list_entry_update = rev_list_entry_update.value_json
+        rev_list_entry_update["rev_list"] = updated_list.to_dict()
+
+        await session.handle.replace(
+            CATEGORY_REV_LIST,
+            rev_list.rev_reg_def_id,
+            value_json=rev_list_entry_update,
+            tags=tags,
+        )
+        return RevList.deserialize(updated_list.to_json())
+
     async def txn_submit(
         self,
-        profile: Profile,
+        ledger: BaseLedger,
         ledger_transaction: str,
         sign: bool = None,
         taa_accept: bool = None,
@@ -1121,10 +1215,6 @@ class LegacyIndyRegistry(BaseAnonCredsResolver, BaseAnonCredsRegistrar):
         write_ledger: bool = True,
     ) -> str:
         """Submit a transaction to the ledger."""
-        ledger = profile.inject(BaseLedger)
-
-        if not ledger:
-            raise LedgerError("No ledger available")
 
         try:
             async with ledger:

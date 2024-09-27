@@ -21,7 +21,7 @@ class KeylistKey(BaseModel):
         recipient_key: str = None,
         action: str = None,
         result: str = None,
-        **kwargs
+        **kwargs,
     ):
         """Initialize a KeylistKey instance.
 
@@ -29,6 +29,7 @@ class KeylistKey(BaseModel):
             recipient_key: The recipient verkey of the route
             action: The requested action to perform
             result: The result of the requested action
+            kwargs: Additional key word arguments for BaseRecord
 
         """
         super().__init__(**kwargs)

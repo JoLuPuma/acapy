@@ -54,7 +54,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
             message_type (str): The message type to validate the attachment data for.
                 Should be one of the message types as defined in message_types.py
             attachment_data (Mapping): [description]
-                The attachment data to valide
+                The attachment data to validate
 
         Raises:
             Exception: When the data is not valid.
@@ -123,9 +123,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
                 attach_id=LDProofCredFormatHandler.format.api,
                 format_=self.get_format_identifier(message_type),
             ),
-            AttachDecorator.data_base64(
-                data, ident=LDProofCredFormatHandler.format.api
-            ),
+            AttachDecorator.data_base64(data, ident=LDProofCredFormatHandler.format.api),
         )
 
     async def create_proposal(
@@ -213,7 +211,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
                 LDProofCredFormatHandler.format
             )
         # API data is stored in proposal (when starting from request)
-        # It is a bit of a strage flow IMO.
+        # It is a bit of a strange flow IMO.
         elif cred_ex_record.cred_proposal:
             request_data = cred_ex_record.cred_proposal.attachment(
                 LDProofCredFormatHandler.format
@@ -282,9 +280,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
     ) -> CredFormatAttachment:
         """Issue linked data proof credential."""
         if not cred_ex_record.cred_request:
-            raise V20CredFormatError(
-                "Cannot issue credential without credential request"
-            )
+            raise V20CredFormatError("Cannot issue credential without credential request")
 
         detail_dict = cred_ex_record.cred_request.attachment(
             LDProofCredFormatHandler.format
@@ -323,7 +319,7 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
                 " match requested credential"
             )
 
-        # both credential and detail contain status. Check for equalness
+        # both credential and detail contain status. Check for equality
         if credential_status and detail_status:
             if credential_status.get("type") != detail_status.get("type"):
                 raise V20CredFormatError(
@@ -423,6 +419,4 @@ class LDProofCredFormatHandler(V20CredFormatHandler):
 
             await vc_holder.store_credential(vc_record)
             # Store detail record, emit event
-            await detail_record.save(
-                session, reason="store credential v2.0", event=True
-            )
+            await detail_record.save(session, reason="store credential v2.0", event=True)

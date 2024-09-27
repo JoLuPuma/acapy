@@ -1,10 +1,10 @@
 import json
-
 from unittest import IsolatedAsyncioTestCase
-from aries_cloudagent.tests import mock
-import pytest
 
+import pytest
 from marshmallow import EXCLUDE
+
+from aries_cloudagent.tests import mock
 
 from ...cache.base import BaseCache
 from ...cache.in_memory import InMemoryCache
@@ -15,18 +15,17 @@ from ...core.profile import Profile
 from ...core.protocol_registry import ProtocolRegistry
 from ...messaging.agent_message import AgentMessage, AgentMessageSchema
 from ...messaging.request_context import RequestContext
+from ...protocols.coordinate_mediation.v1_0.route_manager import RouteManager
 from ...protocols.didcomm_prefix import DIDCommPrefix
 from ...protocols.issue_credential.v2_0.message_types import CRED_20_PROBLEM_REPORT
 from ...protocols.issue_credential.v2_0.messages.cred_problem_report import (
     V20CredProblemReport,
 )
 from ...protocols.problem_report.v1_0.message import ProblemReport
-from ...protocols.coordinate_mediation.v1_0.route_manager import RouteManager
 from ...transport.inbound.message import InboundMessage
 from ...transport.inbound.receipt import MessageReceipt
 from ...transport.outbound.message import OutboundMessage
 from ...utils.stats import Collector
-
 from .. import dispatcher as test_module
 
 
@@ -60,7 +59,7 @@ class StubAgentMessage(AgentMessage):
     class Meta:
         handler_class = "StubAgentMessageHandler"
         schema_class = "StubAgentMessageSchema"
-        message_type = "proto-name/1.1/message-type"
+        message_type = "doc/proto-name/1.1/message-type"
 
 
 class StubAgentMessageSchema(AgentMessageSchema):
@@ -78,7 +77,7 @@ class StubV1_2AgentMessage(AgentMessage):
     class Meta:
         handler_class = "StubV1_2AgentMessageHandler"
         schema_class = "StubV1_2AgentMessageSchema"
-        message_type = "proto-name/1.2/message-type"
+        message_type = "doc/proto-name/1.2/message-type"
 
 
 class StubV1_2AgentMessageSchema(AgentMessageSchema):
@@ -113,15 +112,7 @@ class TestDispatcher(IsolatedAsyncioTestCase):
             StubAgentMessageHandler, "handle", autospec=True
         ) as handler_mock, mock.patch.object(
             test_module, "BaseConnectionManager", autospec=True
-        ) as conn_mgr_mock, mock.patch.object(
-            test_module,
-            "get_version_from_message_type",
-            mock.MagicMock(return_value="1.1"),
-        ), mock.patch.object(
-            test_module,
-            "validate_get_response_version",
-            mock.CoroutineMock(return_value=("1.1", None)),
-        ):
+        ) as conn_mgr_mock:
             conn_mgr_mock.return_value = mock.MagicMock(
                 find_inbound_connection=mock.CoroutineMock(
                     return_value=mock.MagicMock(connection_id="dummy")
@@ -162,15 +153,7 @@ class TestDispatcher(IsolatedAsyncioTestCase):
 
         with mock.patch.object(
             StubAgentMessageHandler, "handle", autospec=True
-        ) as handler_mock, mock.patch.object(
-            test_module,
-            "get_version_from_message_type",
-            mock.MagicMock(return_value="1.1"),
-        ), mock.patch.object(
-            test_module,
-            "validate_get_response_version",
-            mock.CoroutineMock(return_value=("1.1", None)),
-        ):
+        ) as handler_mock:
             await dispatcher.queue_message(
                 dispatcher.profile, make_inbound(message), rcv.send
             )
@@ -200,7 +183,7 @@ class TestDispatcher(IsolatedAsyncioTestCase):
         dispatcher = test_module.Dispatcher(profile)
         await dispatcher.setup()
         rcv = Receiver()
-        message = {"@type": "proto-name/1.1/no-such-message-type"}
+        message = {"@type": "doc/proto-name/1.1/no-such-message-type"}
 
         with mock.patch.object(
             StubAgentMessageHandler, "handle", autospec=True
@@ -234,7 +217,7 @@ class TestDispatcher(IsolatedAsyncioTestCase):
         dispatcher = test_module.Dispatcher(profile)
         await dispatcher.setup()
         rcv = Receiver()
-        message = {"@type": "proto-name/1.1/no-such-message-type"}
+        message = {"@type": "doc/proto-name/1.1/no-such-message-type"}
 
         with mock.patch.object(
             StubAgentMessageHandler, "handle", autospec=True
@@ -274,22 +257,12 @@ class TestDispatcher(IsolatedAsyncioTestCase):
         await dispatcher.setup()
         rcv = Receiver()
         message = {
-            "@type": DIDCommPrefix.qualify_current(
-                StubV1_2AgentMessage.Meta.message_type
-            )
+            "@type": DIDCommPrefix.qualify_current(StubV1_2AgentMessage.Meta.message_type)
         }
 
         with mock.patch.object(
             StubAgentMessageHandler, "handle", autospec=True
-        ) as handler_mock, mock.patch.object(
-            test_module,
-            "get_version_from_message_type",
-            mock.MagicMock(return_value="1.1"),
-        ), mock.patch.object(
-            test_module,
-            "validate_get_response_version",
-            mock.CoroutineMock(return_value=("1.1", None)),
-        ):
+        ) as handler_mock:
             await dispatcher.queue_message(
                 dispatcher.profile, make_inbound(message), rcv.send
             )
@@ -341,22 +314,17 @@ class TestDispatcher(IsolatedAsyncioTestCase):
         await dispatcher.setup()
         rcv = Receiver()
         bad_messages = ["not even a dict", {"bad": "message"}]
-        with mock.patch.object(
-            test_module, "get_version_from_message_type", mock.MagicMock()
-        ), mock.patch.object(
-            test_module, "validate_get_response_version", mock.CoroutineMock()
-        ):
-            for bad in bad_messages:
-                await dispatcher.queue_message(
-                    dispatcher.profile, make_inbound(bad), rcv.send
-                )
-                await dispatcher.task_queue
-                assert rcv.messages and isinstance(rcv.messages[0][1], OutboundMessage)
-                payload = json.loads(rcv.messages[0][1].payload)
-                assert payload["@type"] == DIDCommPrefix.qualify_current(
-                    ProblemReport.Meta.message_type
-                )
-                rcv.messages.clear()
+        for bad in bad_messages:
+            await dispatcher.queue_message(
+                dispatcher.profile, make_inbound(bad), rcv.send
+            )
+            await dispatcher.task_queue
+            assert rcv.messages and isinstance(rcv.messages[0][1], OutboundMessage)
+            payload = json.loads(rcv.messages[0][1].payload)
+            assert payload["@type"] == DIDCommPrefix.qualify_current(
+                ProblemReport.Meta.message_type
+            )
+            rcv.messages.clear()
 
     async def test_bad_message_dispatch_problem_report_x(self):
         profile = make_profile()
@@ -593,91 +561,3 @@ class TestDispatcher(IsolatedAsyncioTestCase):
         with pytest.deprecated_call():
             with self.assertRaises(RuntimeError):
                 await responder.send_webhook("test", {})
-
-    # async def test_dispatch_version_with_degraded_features(self):
-    #     profile = make_profile()
-    #     registry = profile.inject(ProtocolRegistry)
-    #     registry.register_message_types(
-    #         {
-    #             pfx.qualify(StubAgentMessage.Meta.message_type): StubAgentMessage
-    #             for pfx in DIDCommPrefix
-    #         }
-    #     )
-    #     dispatcher = test_module.Dispatcher(profile)
-    #     await dispatcher.setup()
-    #     rcv = Receiver()
-    #     message = {
-    #         "@type": DIDCommPrefix.qualify_current(StubAgentMessage.Meta.message_type)
-    #     }
-
-    #     with mock.patch.object(
-    #         test_module,
-    #         "get_version_from_message_type",
-    #         mock.CoroutineMock(return_value="1.1"),
-    #     ), mock.patch.object(
-    #         test_module,
-    #         "validate_get_response_version",
-    #         mock.CoroutineMock(return_value=("1.1", "fields-ignored-due-to-version-mismatch")),
-    #     ):
-    #         await dispatcher.queue_message(
-    #             dispatcher.profile, make_inbound(message), rcv.send
-    #         )
-
-    # async def test_dispatch_fields_ignored_due_to_version_mismatch(self):
-    #     profile = make_profile()
-    #     registry = profile.inject(ProtocolRegistry)
-    #     registry.register_message_types(
-    #         {
-    #             pfx.qualify(StubAgentMessage.Meta.message_type): StubAgentMessage
-    #             for pfx in DIDCommPrefix
-    #         }
-    #     )
-    #     dispatcher = test_module.Dispatcher(profile)
-    #     await dispatcher.setup()
-    #     rcv = Receiver()
-    #     message = {
-    #         "@type": DIDCommPrefix.qualify_current(StubAgentMessage.Meta.message_type)
-    #     }
-
-    #     with mock.patch.object(
-    #         test_module,
-    #         "get_version_from_message_type",
-    #         mock.CoroutineMock(return_value="1.1"),
-    #     ), mock.patch.object(
-    #         test_module,
-    #         "validate_get_response_version",
-    #         mock.CoroutineMock(return_value=("1.1", "version-with-degraded-features")),
-    #     ):
-    #         await dispatcher.queue_message(
-    #             dispatcher.profile, make_inbound(message), rcv.send
-    #         )
-
-    # async def test_dispatch_version_not_supported(self):
-    #     profile = make_profile()
-    #     registry = profile.inject(ProtocolRegistry)
-    #     registry.register_message_types(
-    #         {
-    #             pfx.qualify(StubAgentMessage.Meta.message_type): StubAgentMessage
-    #             for pfx in DIDCommPrefix
-    #         }
-    #     )
-    #     dispatcher = test_module.Dispatcher(profile)
-    #     await dispatcher.setup()
-    #     rcv = Receiver()
-    #     message = {
-    #         "@type": DIDCommPrefix.qualify_current(StubAgentMessage.Meta.message_type)
-    #     }
-
-    #     with mock.patch.object(
-    #         test_module,
-    #         "get_version_from_message_type",
-    #         mock.CoroutineMock(return_value="1.1"),
-    #     ), mock.patch.object(
-    #         test_module,
-    #         "validate_get_response_version",
-    #         mock.CoroutineMock(return_value=("1.1", "version-not-supported")),
-    #     ):
-    #         with self.assertRaises(test_module.MessageParseError):
-    #             await dispatcher.queue_message(
-    #                 dispatcher.profile, make_inbound(message), rcv.send
-    #             )

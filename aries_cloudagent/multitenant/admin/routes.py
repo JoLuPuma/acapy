@@ -10,15 +10,18 @@ from aiohttp_apispec import (
 )
 from marshmallow import ValidationError, fields, validate, validates_schema
 
+from ...admin.decorators.auth import admin_authentication
 from ...admin.request_context import AdminRequestContext
 from ...core.error import BaseError
 from ...core.profile import ProfileManagerProvider
 from ...messaging.models.base import BaseModelError
 from ...messaging.models.openapi import OpenAPISchema
+from ...messaging.models.paginated_query import PaginatedQuerySchema, get_limit_offset
 from ...messaging.valid import UUID4_EXAMPLE, JSONWebToken
 from ...multitenant.base import BaseMultitenantManager
 from ...storage.error import StorageError, StorageNotFoundError
 from ...utils.endorsement_setup import attempt_auto_author_with_endorser_setup
+from ...utils.profiles import subwallet_type_not_same_as_base_wallet_raise_web_exception
 from ...wallet.error import WalletSettingsError
 from ...wallet.models.wallet_record import WalletRecord, WalletRecordSchema
 from ..error import WalletKeyMissingError
@@ -35,8 +38,6 @@ ACAPY_LIFECYCLE_CONFIG_FLAG_MAP = {
     "ACAPY_AUTO_VERIFY_PRESENTATION": "debug.auto_verify_presentation",
     "ACAPY_AUTO_WRITE_TRANSACTIONS": "endorser.auto_write",
     "ACAPY_CREATE_REVOCATION_TRANSACTIONS": "endorser.auto_create_rev_reg",
-    "ACAPY_EMIT_DID_PEER_2": "emit_did_peer_2",
-    "ACAPY_EMIT_DID_PEER_4": "emit_did_peer_4",
     "ACAPY_ENDORSER_ALIAS": "endorser.endorser_alias",
     "ACAPY_ENDORSER_INVITATION": "endorser.endorser_invitation",
     "ACAPY_ENDORSER_PUBLIC_DID": "endorser.endorser_public_did",
@@ -62,8 +63,6 @@ ACAPY_LIFECYCLE_CONFIG_FLAG_ARGS_MAP = {
     "auto-respond-messages": "debug.auto_respond_messages",
     "auto-verify-presentation": "debug.auto_verify_presentation",
     "auto-write-transactions": "endorser.auto_write",
-    "emit-did-peer-2": "emit_did_peer_2",
-    "emit-did-peer-4": "emit_did_peer_4",
     "endorser-alias": "endorser.endorser_alias",
     "endorser-invitation": "endorser.endorser_invitation",
     "endorser-protocol-role": "endorser.protocol_role",
@@ -167,8 +166,12 @@ class CreateWalletRequestSchema(OpenAPISchema):
 
     wallet_type = fields.Str(
         dump_default="in_memory",
+        required=False,
         validate=validate.OneOf(list(ProfileManagerProvider.MANAGER_TYPES)),
-        metadata={"description": "Type of the wallet to create", "example": "indy"},
+        metadata={
+            "description": "Type of the wallet to create. Must be same as base wallet.",
+            "example": "askar",
+        },
     )
 
     wallet_dispatch_type = fields.Str(
@@ -176,10 +179,10 @@ class CreateWalletRequestSchema(OpenAPISchema):
         validate=validate.OneOf(["default", "both", "base"]),
         metadata={
             "description": (
-                "Webhook target dispatch type for this wallet.         default -"
-                " Dispatch only to webhooks associated with this wallet.         base -"
-                " Dispatch only to webhooks associated with the base wallet.        "
-                " both - Dispatch to both webhook targets."
+                "Webhook target dispatch type for this wallet. "
+                "default: Dispatch only to webhooks associated with this wallet. "
+                "base: Dispatch only to webhooks associated with the base wallet. "
+                "both: Dispatch to both webhook targets."
             ),
             "example": "default",
         },
@@ -199,7 +202,7 @@ class CreateWalletRequestSchema(OpenAPISchema):
     label = fields.Str(
         metadata={
             "description": (
-                "Label for this wallet. This label is publicized        (self-attested)"
+                "Label for this wallet. This label is publicized (self-attested)"
                 " to other agents as part of forming a connection."
             ),
             "example": "Alice",
@@ -209,7 +212,7 @@ class CreateWalletRequestSchema(OpenAPISchema):
     image_url = fields.Str(
         metadata={
             "description": (
-                "Image url for this wallet. This image url is publicized       "
+                "Image url for this wallet. This image url is publicized"
                 " (self-attested) to other agents as part of forming a connection."
             ),
             "example": "https://aries.ca/images/sample.png",
@@ -231,6 +234,7 @@ class CreateWalletRequestSchema(OpenAPISchema):
 
         Args:
             data: The data to validate
+            kwargs: Additional keyword arguments
 
         Raises:
             ValidationError: If any of the fields do not validate
@@ -251,10 +255,10 @@ class UpdateWalletRequestSchema(OpenAPISchema):
         validate=validate.OneOf(["default", "both", "base"]),
         metadata={
             "description": (
-                "Webhook target dispatch type for this wallet.         default -"
-                " Dispatch only to webhooks associated with this wallet.         base -"
-                " Dispatch only to webhooks associated with the base wallet.        "
-                " both - Dispatch to both webhook targets."
+                "Webhook target dispatch type for this wallet. "
+                "default: Dispatch only to webhooks associated with this wallet. "
+                "base: Dispatch only to webhooks associated with the base wallet. "
+                "both: Dispatch to both webhook targets."
             ),
             "example": "default",
         },
@@ -275,7 +279,7 @@ class UpdateWalletRequestSchema(OpenAPISchema):
     label = fields.Str(
         metadata={
             "description": (
-                "Label for this wallet. This label is publicized        (self-attested)"
+                "Label for this wallet. This label is publicized (self-attested)"
                 " to other agents as part of forming a connection."
             ),
             "example": "Alice",
@@ -284,7 +288,7 @@ class UpdateWalletRequestSchema(OpenAPISchema):
     image_url = fields.Str(
         metadata={
             "description": (
-                "Image url for this wallet. This image url is publicized       "
+                "Image url for this wallet. This image url is publicized"
                 " (self-attested) to other agents as part of forming a connection."
             ),
             "example": "https://aries.ca/images/sample.png",
@@ -309,7 +313,7 @@ class RemoveWalletRequestSchema(OpenAPISchema):
     wallet_key = fields.Str(
         metadata={
             "description": (
-                "Master key used for key derivation. Only required for        "
+                "Master key used for key derivation. Only required for"
                 " unmanaged wallets."
             ),
             "example": "MySecretKey123",
@@ -323,8 +327,8 @@ class CreateWalletTokenRequestSchema(OpenAPISchema):
     wallet_key = fields.Str(
         metadata={
             "description": (
-                "Master key used for key derivation. Only required for        "
-                " unamanged wallets."
+                "Master key used for key derivation. Only required for"
+                " unmanaged wallets."
             ),
             "example": "MySecretKey123",
         }
@@ -351,7 +355,7 @@ class WalletListSchema(OpenAPISchema):
     )
 
 
-class WalletListQueryStringSchema(OpenAPISchema):
+class WalletListQueryStringSchema(PaginatedQuerySchema):
     """Parameters and validators for wallet list request query string."""
 
     wallet_name = fields.Str(
@@ -362,6 +366,7 @@ class WalletListQueryStringSchema(OpenAPISchema):
 @docs(tags=["multitenancy"], summary="Query subwallets")
 @querystring_schema(WalletListQueryStringSchema())
 @response_schema(WalletListSchema(), 200, description="")
+@admin_authentication
 async def wallets_list(request: web.BaseRequest):
     """Request handler for listing all internal subwallets.
 
@@ -377,9 +382,16 @@ async def wallets_list(request: web.BaseRequest):
     if wallet_name:
         query["wallet_name"] = wallet_name
 
+    limit, offset = get_limit_offset(request)
+
     try:
         async with profile.session() as session:
-            records = await WalletRecord.query(session, tag_filter=query)
+            records = await WalletRecord.query(
+                session,
+                tag_filter=query,
+                limit=limit,
+                offset=offset,
+            )
         results = [format_wallet_record(record) for record in records]
         results.sort(key=lambda w: w["created_at"])
     except (StorageError, BaseModelError) as err:
@@ -391,6 +403,7 @@ async def wallets_list(request: web.BaseRequest):
 @docs(tags=["multitenancy"], summary="Get a single subwallet")
 @match_info_schema(WalletIdMatchInfoSchema())
 @response_schema(WalletRecordSchema(), 200, description="")
+@admin_authentication
 async def wallet_get(request: web.BaseRequest):
     """Request handler for getting a single subwallet.
 
@@ -421,6 +434,7 @@ async def wallet_get(request: web.BaseRequest):
 @docs(tags=["multitenancy"], summary="Create a subwallet")
 @request_schema(CreateWalletRequestSchema)
 @response_schema(CreateWalletResponseSchema(), 200, description="")
+@admin_authentication
 async def wallet_create(request: web.BaseRequest):
     """Request handler for adding a new subwallet for handling by the agent.
 
@@ -430,6 +444,13 @@ async def wallet_create(request: web.BaseRequest):
 
     context: AdminRequestContext = request["context"]
     body = await request.json()
+
+    base_wallet_type = context.profile.settings.get("wallet.type")
+    sub_wallet_type = body.get("wallet_type", base_wallet_type)
+
+    subwallet_type_not_same_as_base_wallet_raise_web_exception(
+        base_wallet_type, sub_wallet_type
+    )
 
     key_management_mode = body.get("key_management_mode") or WalletRecord.MODE_MANAGED
     wallet_key = body.get("wallet_key")
@@ -441,7 +462,7 @@ async def wallet_create(request: web.BaseRequest):
         wallet_dispatch_type = "base"
 
     settings = {
-        "wallet.type": body.get("wallet_type") or "in_memory",
+        "wallet.type": sub_wallet_type,
         "wallet.name": body.get("wallet_name"),
         "wallet.key": wallet_key,
         "wallet.webhook_urls": wallet_webhook_urls,
@@ -463,9 +484,7 @@ async def wallet_create(request: web.BaseRequest):
     try:
         multitenant_mgr = context.profile.inject(BaseMultitenantManager)
 
-        wallet_record = await multitenant_mgr.create_wallet(
-            settings, key_management_mode
-        )
+        wallet_record = await multitenant_mgr.create_wallet(settings, key_management_mode)
 
         token = await multitenant_mgr.create_auth_token(wallet_record, wallet_key)
 
@@ -487,6 +506,7 @@ async def wallet_create(request: web.BaseRequest):
 @match_info_schema(WalletIdMatchInfoSchema())
 @request_schema(UpdateWalletRequestSchema)
 @response_schema(WalletRecordSchema(), 200, description="")
+@admin_authentication
 async def wallet_update(request: web.BaseRequest):
     """Request handler for updating a existing subwallet for handling by the agent.
 
@@ -551,6 +571,7 @@ async def wallet_update(request: web.BaseRequest):
 @docs(tags=["multitenancy"], summary="Get auth token for a subwallet")
 @request_schema(CreateWalletTokenRequestSchema)
 @response_schema(CreateWalletTokenResponseSchema(), 200, description="")
+@admin_authentication
 async def wallet_create_token(request: web.BaseRequest):
     """Request handler for creating an authorization token for a specific subwallet.
 
@@ -595,6 +616,7 @@ async def wallet_create_token(request: web.BaseRequest):
 @match_info_schema(WalletIdMatchInfoSchema())
 @request_schema(RemoveWalletRequestSchema)
 @response_schema(MultitenantModuleResponseSchema(), 200, description="")
+@admin_authentication
 async def wallet_remove(request: web.BaseRequest):
     """Request handler to remove a subwallet from agent and storage.
 

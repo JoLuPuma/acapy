@@ -37,6 +37,7 @@ class MediationGrant(AgentMessage):
         Args:
             endpoint: Endpoint address for the mediation route
             routing_keys: Keys for the mediation route
+            kwargs: Additional keyword arguments for the message
         """
         super(MediationGrant, self).__init__(**kwargs)
         self.endpoint = endpoint
@@ -60,8 +61,6 @@ class MediationGrantSchema(AgentMessageSchema):
         }
     )
     routing_keys = fields.List(
-        fields.Str(
-            metadata={"description": "Keys to use for forward message packaging"}
-        ),
+        fields.Str(metadata={"description": "Keys to use for forward message packaging"}),
         required=False,
     )

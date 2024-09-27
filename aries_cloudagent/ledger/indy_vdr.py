@@ -126,14 +126,10 @@ class IndyVdrLedgerPool:
                 path = self.cfg_path.joinpath(self.name, "genesis")
                 self.genesis_txns_cache = _normalize_txns(open(path).read())
             except FileNotFoundError:
-                raise LedgerConfigError(
-                    "Pool config '%s' not found", self.name
-                ) from None
+                raise LedgerConfigError("Pool config '%s' not found", self.name) from None
         return self.genesis_txns_cache
 
-    async def create_pool_config(
-        self, genesis_transactions: str, recreate: bool = False
-    ):
+    async def create_pool_config(self, genesis_transactions: str, recreate: bool = False):
         """Create the pool ledger configuration."""
 
         cfg_pool = self.cfg_path.joinpath(self.name)
@@ -319,10 +315,11 @@ class IndyVdrLedger(BaseLedger):
         """Sign and submit request to ledger.
 
         Args:
-            request_json: The json string to submit
+            request: The request to submit
             sign: whether or not to sign the request
             taa_accept: whether to apply TAA acceptance to the (signed, write) request
             sign_did: override the signing DID
+            write_ledger: whether to write the request to the ledger
 
         """
 
@@ -723,6 +720,9 @@ class IndyVdrLedger(BaseLedger):
             did: The ledger DID
             endpoint: The endpoint address
             endpoint_type: The type of the endpoint
+            write_ledger: Whether to write the endpoint to the ledger
+            endorser_did: DID of the endorser to use for the transaction
+            routing_keys: List of routing keys
         """
         public_info = await self.get_wallet_public_did()
         if not public_info:
@@ -753,9 +753,7 @@ class IndyVdrLedger(BaseLedger):
             )
 
             try:
-                attrib_req = ledger.build_attrib_request(
-                    nym, nym, None, attr_json, None
-                )
+                attrib_req = ledger.build_attrib_request(nym, nym, None, attr_json, None)
 
                 if endorser_did and not write_ledger:
                     attrib_req.set_endorser(endorser_did)
@@ -791,6 +789,8 @@ class IndyVdrLedger(BaseLedger):
             verkey: The verification key of the keypair.
             alias: Human-friendly alias to assign to the DID.
             role: For permissioned ledgers, what role should the new DID have.
+            write_ledger: Whether to write the nym to the ledger.
+            endorser_did: DID of the endorser to use for the transaction.
         """
         if self.read_only:
             raise LedgerError(
@@ -802,9 +802,7 @@ class IndyVdrLedger(BaseLedger):
             raise BadLedgerRequestError("Cannot register NYM without a public DID")
 
         try:
-            nym_req = ledger.build_nym_request(
-                public_info.did, did, verkey, alias, role
-            )
+            nym_req = ledger.build_nym_request(public_info.did, did, verkey, alias, role)
         except VdrError as err:
             raise LedgerError("Exception when building nym request") from err
 
@@ -946,9 +944,7 @@ class IndyVdrLedger(BaseLedger):
         taa_found = response["data"]
         taa_required = bool(taa_found and taa_found["text"])
         if taa_found:
-            taa_found["digest"] = self.taa_digest(
-                taa_found["version"], taa_found["text"]
-            )
+            taa_found["digest"] = self.taa_digest(taa_found["version"], taa_found["text"])
 
         return {
             "aml_record": aml_found,
@@ -962,9 +958,7 @@ class IndyVdrLedger(BaseLedger):
         Anything more accurate is a privacy concern.
         """
         return int(
-            datetime.combine(
-                date.today(), datetime.min.time(), timezone.utc
-            ).timestamp()
+            datetime.combine(date.today(), datetime.min.time(), timezone.utc).timestamp()
         )
 
     async def accept_txn_author_agreement(
@@ -1092,6 +1086,27 @@ class IndyVdrLedger(BaseLedger):
             ) from err
 
         response_value = response["data"]["value"]
+        accum_to = response_value.get("accum_to")
+
+        # If accum_to is not present, then the timestamp_to was before the registry
+        # was created. In this case, we need to fetch the registry creation timestamp and
+        # re-calculate the delta.
+        if not accum_to:
+            try:
+                (_, timestamp) = await self.get_revoc_reg_entry(revoc_reg_id, int(time()))
+                fetch_req = ledger.build_get_revoc_reg_delta_request(
+                    public_info and public_info.did,
+                    revoc_reg_id,
+                    timestamp_from,
+                    timestamp,
+                )
+                response = await self._submit(fetch_req, sign_did=public_info)
+                response_value = response["data"]["value"]
+            except VdrError as err:
+                raise LedgerError(
+                    f"get_revoc_reg_delta failed for revoc_reg_id='{revoc_reg_id}'"
+                ) from err
+
         delta_value = {
             "accum": response_value["accum_to"]["value"]["accum"],
             "issued": response_value.get("issued", []),
@@ -1146,13 +1161,18 @@ class IndyVdrLedger(BaseLedger):
                 rev_reg_def_req.set_endorser(endorser_did)
 
             legacy_indy_registry = LegacyIndyRegistry()
-            resp = await legacy_indy_registry.txn_submit(
-                self.profile,
-                rev_reg_def_req,
-                sign=True,
-                sign_did=did_info,
-                write_ledger=write_ledger,
-            )
+            try:
+                resp = await legacy_indy_registry.txn_submit(
+                    self,
+                    rev_reg_def_req,
+                    sign=True,
+                    sign_did=did_info,
+                    write_ledger=write_ledger,
+                )
+            except LedgerError as err:
+                raise LedgerError(
+                    "Exception when sending revocation registry definition"
+                ) from err
 
             if not write_ledger:
                 return revoc_reg_def["id"], {"signed_txn": resp}
@@ -1222,7 +1242,7 @@ class IndyVdrLedger(BaseLedger):
 
             legacy_indy_registry = LegacyIndyRegistry()
             resp = await legacy_indy_registry.txn_submit(
-                self.profile,
+                self,
                 revoc_reg_entry_req,
                 sign=True,
                 sign_did=did_info,

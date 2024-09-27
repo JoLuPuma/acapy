@@ -1,19 +1,18 @@
 """Test handler for keylist-query message."""
 
-import pytest
 from unittest import IsolatedAsyncioTestCase
+
+import pytest
 
 from ......connections.models.conn_record import ConnRecord
 from ......messaging.base_handler import HandlerException
 from ......messaging.request_context import RequestContext
 from ......messaging.responder import MockResponder
 from .....routing.v1_0.models.route_record import RouteRecord
-
 from ...messages.keylist import Keylist
 from ...messages.keylist_query import KeylistQuery
 from ...messages.problem_report import CMProblemReport, ProblemReportReason
 from ...models.mediation_record import MediationRecord
-
 from ..keylist_query_handler import KeylistQueryHandler
 
 TEST_CONN_ID = "conn-id"
@@ -47,8 +46,7 @@ class TestKeylistQueryHandler(IsolatedAsyncioTestCase):
         result, _target = responder.messages[0]
         assert isinstance(result, CMProblemReport)
         assert (
-            result.description["code"]
-            == ProblemReportReason.MEDIATION_NOT_GRANTED.value
+            result.description["code"] == ProblemReportReason.MEDIATION_NOT_GRANTED.value
         )
 
     async def test_handler_record_not_granted(self):
@@ -61,8 +59,7 @@ class TestKeylistQueryHandler(IsolatedAsyncioTestCase):
         result, _target = responder.messages[0]
         assert isinstance(result, CMProblemReport)
         assert (
-            result.description["code"]
-            == ProblemReportReason.MEDIATION_NOT_GRANTED.value
+            result.description["code"] == ProblemReportReason.MEDIATION_NOT_GRANTED.value
         )
 
     async def test_handler(self):

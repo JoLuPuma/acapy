@@ -2,8 +2,8 @@
 
 from collections import OrderedDict
 
-from ..core.error import ProfileError
 from ..config.settings import BaseSettings
+from ..core.error import ProfileError
 
 
 def get_write_ledger_config_for_profile(settings: BaseSettings) -> dict:
@@ -12,11 +12,15 @@ def get_write_ledger_config_for_profile(settings: BaseSettings) -> dict:
     prod_write_ledger_pool = OrderedDict()
     non_prod_write_ledger_pool = OrderedDict()
     for ledger_config in settings.get("ledger.ledger_config_list"):
-        if ledger_config.get("is_production") and ledger_config.get("is_write"):
+        if ledger_config.get("is_production") and (
+            ledger_config.get("is_write") or settings.get("ledger.read_only")
+        ):
             prod_write_ledger_pool[
                 ledger_config.get("id") or ledger_config.get("pool_name")
             ] = ledger_config
-        elif not ledger_config.get("is_production") and ledger_config.get("is_write"):
+        elif not ledger_config.get("is_production") and (
+            ledger_config.get("is_write") or settings.get("ledger.read_only")
+        ):
             non_prod_write_ledger_pool[
                 ledger_config.get("id") or ledger_config.get("pool_name")
             ] = ledger_config

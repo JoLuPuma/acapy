@@ -1,21 +1,11 @@
-from unittest import mock
-from unittest import TestCase
+from unittest import IsolatedAsyncioTestCase, TestCase, mock
 
-from unittest import IsolatedAsyncioTestCase
-
-from ......wallet.key_type import ED25519
-from ......connections.models.diddoc import (
-    DIDDoc,
-    PublicKey,
-    PublicKeyType,
-    Service,
-)
+from ......connections.models.diddoc import DIDDoc, PublicKey, PublicKeyType, Service
 from ......core.in_memory import InMemoryProfile
-
+from ......wallet.key_type import ED25519
 from .....didcomm_prefix import DIDCommPrefix
 from ...message_types import CONNECTION_RESPONSE
 from ...models.connection_detail import ConnectionDetail
-
 from ..connection_response import ConnectionResponse
 
 
@@ -96,8 +86,7 @@ class TestConnectionResponse(TestCase, TestConfig):
         )
 
         assert (
-            connection_response_dict
-            is mock_connection_response_schema_dump.return_value
+            connection_response_dict is mock_connection_response_schema_dump.return_value
         )
 
 

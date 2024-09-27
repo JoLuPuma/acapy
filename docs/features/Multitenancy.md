@@ -43,7 +43,7 @@ The wallets used by the different tenants are called **sub wallets**. A sub wall
 
 The **base wallet** however, takes on a different role and has limited functionality. Its main function is to manage the sub wallets, which can be done using the [Multi-tenant Admin API](#multi-tenant-admin-api). It stores all settings and information about the different sub wallets and will route incoming messages to the corresponding sub wallets. See [Message Routing](#message-routing) for more details. All other features are disabled for the base wallet. This means it cannot issue credentials, present proof, or do any of the other actions sub wallets can do. This is to keep a clear hierarchical difference between base and sub wallets. For this reason, the base wallet should generally _not_ be provisioned using the `--wallet-seed` argument as not only it is not necessary for sub wallet management operations, but it will also require this DID to be correctly registered on the ledger for the service to start-up correctly.
 
-![Multi-tenancy Architecture](/docs/assets/multitenancyDiagram.png)
+![Multi-tenancy Architecture](../assets/multitenancyDiagram.png)
 
 ### Usage
 
@@ -63,6 +63,12 @@ multitenant-admin: true
 # This sets the secret used for JWT creation/verification for sub wallets
 jwt-secret: Something very secret
 ```
+
+##### Single Wallet vs Multiple Wallets
+
+With askar wallets it's possible to have all tenant wallets in a single wallet or each have an individual wallet. The default is to have each tenant in a separate wallet. This is done to keep the wallets separate and to allow for more flexibility in the future. If you want to have all tenants in a single wallet you can set the `multitenancy-config` with the value `{"wallet_type": "single-wallet-askar"}`. If you want to explicitly set the wallet type for each tenant you can do so by setting the `multitenancy-config` with the value `{"wallet_type": "basic"}`. See .vscode-sample/multitenant-admin.yml for an example.
+
+```yaml
 
 ## Multi-tenant Admin API
 
@@ -301,7 +307,7 @@ For deterministic JWT creation and verification between restarts and multiple in
 
 When using the SwaggerUI you can click the :lock: icon next to each of the endpoints or the `Authorize` button at the top to set the correct authentication headers. Make sure to also include the `Bearer` part in the input field. This won't be automatically added.
 
-![API Authentication](/docs/assets/adminApiAuthentication.png)
+![API Authentication](../assets/adminApiAuthentication.png)
 
 ## Tenant Management
 

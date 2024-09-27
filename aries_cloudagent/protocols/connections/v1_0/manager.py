@@ -1,6 +1,7 @@
 """Classes to manage connections."""
 
 import logging
+import warnings
 from typing import Optional, Sequence, Tuple, Union, cast
 
 from ....connections.base_manager import BaseConnectionManager
@@ -52,6 +53,18 @@ class ConnectionManager(BaseConnectionManager):
         """
         return self._profile
 
+    def deprecation_warning(self):
+        """Log a deprecation warning."""
+        warnings.warn(
+            "Aries RFC 0160: Connection Protocol is deprecated and support will be "
+            "removed in a future version; use RFC 0023: DID Exchange instead.",
+            DeprecationWarning,
+        )
+        self._logger.warning(
+            "Aries RFC 0160: Connection Protocol is deprecated and support will be "
+            "removed in a future version; use RFC 0023: DID Exchange instead."
+        )
+
     async def create_invitation(
         self,
         my_label: Optional[str] = None,
@@ -102,11 +115,20 @@ class ConnectionManager(BaseConnectionManager):
             public: set to create an invitation from the public DID
             multi_use: set to True to create an invitation for multiple use
             alias: optional alias to apply to connection for later use
+            routing_keys: optional list of routing keys for the invitation
+            recipient_keys: optional list of recipient keys for the invitation
+            metadata: optional metadata to include in the connection record
+            mediation_id: optional mediation ID for the connection
 
         Returns:
             A tuple of the new `ConnRecord` and `ConnectionInvitation` instances
 
+        Raises:
+            ConnectionManagerError: if public invitations are not enabled or
+                no public DID is available
+
         """
+        self.deprecation_warning()
         # Mediation Record can still be None after this operation if no
         # mediation id passed and no default
         mediation_record = await self._route_manager.mediation_record_if_id(
@@ -145,9 +167,7 @@ class ConnectionManager(BaseConnectionManager):
             # Create and store new invitation key
             async with self.profile.session() as session:
                 wallet = session.inject(BaseWallet)
-                invitation_signing_key = await wallet.create_signing_key(
-                    key_type=ED25519
-                )
+                invitation_signing_key = await wallet.create_signing_key(key_type=ED25519)
             invitation_key = invitation_signing_key.verkey
             recipient_keys = [invitation_key]
 
@@ -250,13 +270,22 @@ class ConnectionManager(BaseConnectionManager):
 
         Args:
             invitation: The `ConnectionInvitation` to store
-            auto_accept: set to auto-accept the invitation (None to use config)
-            alias: optional alias to set on the record
+            their_public_did: The public DID of the inviting party (optional)
+            auto_accept: Set to True to auto-accept the invitation, False to manually
+                accept, or None to use the default setting from the configuration
+                (optional)
+            alias: An optional alias to set on the connection record (optional)
+            mediation_id: The mediation ID to associate with the connection (optional)
 
         Returns:
-            The new `ConnRecord` instance
+            The new `ConnRecord` instance representing the connection
+
+        Raises:
+            ConnectionManagerError: If the invitation is missing recipient keys or an
+                endpoint
 
         """
+        self.deprecation_warning()
         if not invitation.did:
             if not invitation.recipient_keys:
                 raise ConnectionManagerError(
@@ -333,11 +362,13 @@ class ConnectionManager(BaseConnectionManager):
             connection: The `ConnRecord` representing the invitation to accept
             my_label: My label
             my_endpoint: My endpoint
+            mediation_id: The record id for mediation
 
         Returns:
             A new `ConnectionRequest` message to send to the other agent
 
         """
+        self.deprecation_warning()
 
         mediation_records = await self._route_manager.mediation_records_for_connection(
             self.profile,
@@ -411,6 +442,7 @@ class ConnectionManager(BaseConnectionManager):
             The new or updated `ConnRecord` instance
 
         """
+        self.deprecation_warning()
         ConnRecord.log_state(
             "Receiving connection request",
             {"request": request},
@@ -527,8 +559,7 @@ class ConnectionManager(BaseConnectionManager):
             if not connection:
                 if not self.profile.settings.get("requests_through_public_did"):
                     raise ConnectionManagerError(
-                        "Unsolicited connection requests to "
-                        "public DID is not enabled"
+                        "Unsolicited connection requests to " "public DID is not enabled"
                     )
                 connection = ConnRecord()
             connection.invitation_key = connection_key
@@ -575,6 +606,7 @@ class ConnectionManager(BaseConnectionManager):
             A tuple of the updated `ConnRecord` new `ConnectionResponse` message
 
         """
+        self.deprecation_warning()
         ConnRecord.log_state(
             "Creating connection response",
             {"connection_id": connection.connection_id},
@@ -650,7 +682,7 @@ class ConnectionManager(BaseConnectionManager):
 
         # TODO It's possible the mediation request sent here might arrive
         # before the connection response. This would result in an error condition
-        # difficult to accomodate for without modifying handlers for trust ping
+        # difficult to accommodate for without modifying handlers for trust ping
         # to ensure the connection is active.
         async with self.profile.session() as session:
             send_mediation_request = await connection.metadata_get(
@@ -686,6 +718,7 @@ class ConnectionManager(BaseConnectionManager):
                 at the request or response stage
 
         """
+        self.deprecation_warning()
         connection = None
         if response._thread:
             # identify the request by the thread ID
@@ -765,6 +798,7 @@ class ConnectionManager(BaseConnectionManager):
         report: ConnectionProblemReport,
     ):
         """Receive problem report."""
+        self.deprecation_warning()
         if not report.description:
             raise ConnectionManagerError("Missing description in problem report")
 

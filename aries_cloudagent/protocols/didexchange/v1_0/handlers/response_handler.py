@@ -1,10 +1,6 @@
 """DID exchange response handler under RFC 23."""
 
-from .....messaging.base_handler import (
-    BaseHandler,
-    BaseResponder,
-    RequestContext,
-)
+from .....messaging.base_handler import BaseHandler, BaseResponder, RequestContext
 from ....trustping.v1_0.messages.ping import Ping
 from ..manager import DIDXManager, DIDXManagerError
 from ..messages.response import DIDXResponse
@@ -26,9 +22,7 @@ class DIDXResponseHandler(BaseHandler):
         profile = context.profile
         mgr = DIDXManager(profile)
         try:
-            conn_rec = await mgr.accept_response(
-                context.message, context.message_receipt
-            )
+            conn_rec = await mgr.accept_response(context.message, context.message_receipt)
         except DIDXManagerError as e:
             report, targets = await mgr.manager_error_to_problem_report(
                 e, context.message, context.message_receipt

@@ -3,8 +3,7 @@
 from .....messaging.base_handler import BaseHandler, HandlerException
 from .....messaging.request_context import RequestContext
 from .....messaging.responder import BaseResponder
-
-from ..manager import MediationManager, MediationAlreadyExists
+from ..manager import MediationAlreadyExists, MediationManager
 from ..messages.mediate_request import MediationRequest
 from ..messages.problem_report import CMProblemReport, ProblemReportReason
 
@@ -14,9 +13,7 @@ class MediationRequestHandler(BaseHandler):
 
     async def handle(self, context: RequestContext, responder: BaseResponder):
         """Handle mediate-request message."""
-        self._logger.debug(
-            "%s called with context %s", self.__class__.__name__, context
-        )
+        self._logger.debug("%s called with context %s", self.__class__.__name__, context)
         assert isinstance(context.message, MediationRequest)
 
         if not context.connection_ready:

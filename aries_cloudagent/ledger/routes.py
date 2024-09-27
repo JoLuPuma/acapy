@@ -11,9 +11,9 @@ from aiohttp_apispec import (
     request_schema,
     response_schema,
 )
-
 from marshmallow import fields, validate
 
+from ..admin.decorators.auth import tenant_authentication
 from ..admin.request_context import AdminRequestContext
 from ..connections.models.conn_record import ConnRecord
 from ..messaging.models.base import BaseModelError
@@ -262,6 +262,7 @@ class WriteLedgerRequestSchema(OpenAPISchema):
 @querystring_schema(CreateDidTxnForEndorserOptionSchema())
 @querystring_schema(SchemaConnIdMatchInfoSchema())
 @response_schema(TxnOrRegisterLedgerNymResponseSchema(), 200, description="")
+@tenant_authentication
 async def register_ledger_nym(request: web.BaseRequest):
     """Request handler for registering a NYM with the ledger.
 
@@ -281,9 +282,7 @@ async def register_ledger_nym(request: web.BaseRequest):
     did = request.query.get("did")
     verkey = request.query.get("verkey")
     if not did or not verkey:
-        raise web.HTTPBadRequest(
-            reason="Request query must include both did and verkey"
-        )
+        raise web.HTTPBadRequest(reason="Request query must include both did and verkey")
 
     alias = request.query.get("alias")
     role = request.query.get("role")
@@ -320,9 +319,7 @@ async def register_ledger_nym(request: web.BaseRequest):
             raise web.HTTPBadRequest(reason=err.roll_up) from err
 
         async with context.profile.session() as session:
-            endorser_info = await connection_record.metadata_get(
-                session, "endorser_info"
-            )
+            endorser_info = await connection_record.metadata_get(session, "endorser_info")
         if not endorser_info:
             raise web.HTTPForbidden(
                 reason=(
@@ -407,7 +404,7 @@ async def register_ledger_nym(request: web.BaseRequest):
                         if endorser_write_txn
                         else None
                     ),
-                    # TODO see if we need to parameterize these params
+                    # TODO see if we need to parametrize these params
                     # expires_time=expires_time,
                 )
                 txn = transaction.serialize()
@@ -425,6 +422,7 @@ async def register_ledger_nym(request: web.BaseRequest):
 )
 @querystring_schema(QueryStringDIDSchema)
 @response_schema(GetNymRoleResponseSchema(), 200, description="")
+@tenant_authentication
 async def get_nym_role(request: web.BaseRequest):
     """Request handler for getting the role from the NYM registration of a public DID.
 
@@ -471,6 +469,7 @@ async def get_nym_role(request: web.BaseRequest):
 
 @docs(tags=["ledger"], summary="Rotate key pair for public DID.")
 @response_schema(LedgerModulesResultSchema(), 200, description="")
+@tenant_authentication
 async def rotate_public_did_keypair(request: web.BaseRequest):
     """Request handler for rotating key pair associated with public DID.
 
@@ -500,6 +499,7 @@ async def rotate_public_did_keypair(request: web.BaseRequest):
 )
 @querystring_schema(QueryStringDIDSchema())
 @response_schema(GetDIDVerkeyResponseSchema(), 200, description="")
+@tenant_authentication
 async def get_did_verkey(request: web.BaseRequest):
     """Request handler for getting a verkey for a DID from the ledger.
 
@@ -548,6 +548,7 @@ async def get_did_verkey(request: web.BaseRequest):
 )
 @querystring_schema(QueryStringEndpointSchema())
 @response_schema(GetDIDEndpointResponseSchema(), 200, description="")
+@tenant_authentication
 async def get_did_endpoint(request: web.BaseRequest):
     """Request handler for getting a verkey for a DID from the ledger.
 
@@ -593,6 +594,7 @@ async def get_did_endpoint(request: web.BaseRequest):
 
 @docs(tags=["ledger"], summary="Fetch the current transaction author agreement, if any")
 @response_schema(TAAResultSchema, 200, description="")
+@tenant_authentication
 async def ledger_get_taa(request: web.BaseRequest):
     """Request handler for fetching the transaction author agreement.
 
@@ -633,6 +635,7 @@ async def ledger_get_taa(request: web.BaseRequest):
 @docs(tags=["ledger"], summary="Accept the transaction author agreement")
 @request_schema(TAAAcceptSchema)
 @response_schema(LedgerModulesResultSchema(), 200, description="")
+@tenant_authentication
 async def ledger_accept_taa(request: web.BaseRequest):
     """Request handler for accepting the current transaction author agreement.
 
@@ -693,6 +696,7 @@ async def ledger_accept_taa(request: web.BaseRequest):
 
 @docs(tags=["ledger"], summary="Fetch list of available write ledgers")
 @response_schema(ConfigurableWriteLedgersSchema, 200, description="")
+@tenant_authentication
 async def get_write_ledgers(request: web.BaseRequest):
     """Request handler for fetching the list of available write ledgers.
 
@@ -714,6 +718,7 @@ async def get_write_ledgers(request: web.BaseRequest):
 
 @docs(tags=["ledger"], summary="Fetch the current write ledger")
 @response_schema(WriteLedgerSchema, 200, description="")
+@tenant_authentication
 async def get_write_ledger(request: web.BaseRequest):
     """Request handler for fetching the currently set write ledger.
 
@@ -739,6 +744,7 @@ async def get_write_ledger(request: web.BaseRequest):
 @docs(tags=["ledger"], summary="Set write ledger")
 @match_info_schema(WriteLedgerRequestSchema())
 @response_schema(WriteLedgerSchema, 200, description="")
+@tenant_authentication
 async def set_write_ledger(request: web.BaseRequest):
     """Request handler for setting write ledger.
 
@@ -765,10 +771,9 @@ async def set_write_ledger(request: web.BaseRequest):
     return web.json_response({"write_ledger": set_ledger_id})
 
 
-@docs(
-    tags=["ledger"], summary="Fetch the multiple ledger configuration currently in use"
-)
+@docs(tags=["ledger"], summary="Fetch the multiple ledger configuration currently in use")
 @response_schema(LedgerConfigListSchema, 200, description="")
+@tenant_authentication
 async def get_ledger_config(request: web.BaseRequest):
     """Request handler for fetching the ledger configuration list in use.
 
@@ -788,9 +793,7 @@ async def get_ledger_config(request: web.BaseRequest):
         ledger_config_list = session.settings.get_value("ledger.ledger_config_list")
         config_ledger_dict = {"production_ledgers": [], "non_production_ledgers": []}
         production_ledger_keys = (await multiledger_mgr.get_prod_ledgers()).keys()
-        non_production_ledger_keys = (
-            await multiledger_mgr.get_nonprod_ledgers()
-        ).keys()
+        non_production_ledger_keys = (await multiledger_mgr.get_nonprod_ledgers()).keys()
         config_ledger_ids_set = set()
         for config in ledger_config_list:
             ledger_id = config.get("id")

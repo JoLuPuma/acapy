@@ -1,10 +1,6 @@
 """Connection response handler."""
 
-from .....messaging.base_handler import (
-    BaseHandler,
-    BaseResponder,
-    RequestContext,
-)
+from .....messaging.base_handler import BaseHandler, BaseResponder, RequestContext
 from .....protocols.trustping.v1_0.messages.ping import Ping
 from ..manager import ConnectionManager, ConnectionManagerError
 from ..messages.connection_response import ConnectionResponse
@@ -42,4 +38,4 @@ class ConnectionResponseHandler(BaseHandler):
 
         # send trust ping in response
         if context.settings.get("auto_ping_connection"):
-            await responder.send(Ping(), connection_id=connection.connection_id),
+            (await responder.send(Ping(), connection_id=connection.connection_id),)

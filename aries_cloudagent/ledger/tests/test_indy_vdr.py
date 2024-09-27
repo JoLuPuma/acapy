@@ -238,9 +238,7 @@ class TestIndyVdrLedger:
         )
 
         async with ledger:
-            ledger.pool_handle.submit_request.return_value = {
-                "txnMetadata": {"seqNo": 1}
-            }
+            ledger.pool_handle.submit_request.return_value = {"txnMetadata": {"seqNo": 1}}
 
             with mock.patch.object(
                 ledger,
@@ -506,9 +504,7 @@ class TestIndyVdrLedger:
                 )
 
     @pytest.mark.asyncio
-    async def test_send_credential_definition_no_such_schema(
-        self, ledger: IndyVdrLedger
-    ):
+    async def test_send_credential_definition_no_such_schema(self, ledger: IndyVdrLedger):
         issuer = mock.MagicMock(IndyIssuer)
         async with ledger:
             ledger.pool_handle.submit_request.return_value = {}
@@ -973,6 +969,56 @@ class TestIndyVdrLedger:
             )
 
     @pytest.mark.asyncio
+    async def test_get_revoc_reg_delta_without_accum_to(
+        self,
+        ledger: IndyVdrLedger,
+    ):
+        async with ledger:
+            reg_id = (
+                "55GkHamhTU1ZbTbV2ab9DE:4:55GkHamhTU1ZbTbV2ab9DE:3:CL:99:tag:CL_ACCUM:0"
+            )
+            ledger.pool_handle.submit_request.side_effect = [
+                # First call to get_revoc_reg_delta
+                {
+                    "data": {
+                        "value": {},
+                        "revocRegDefId": reg_id,
+                    },
+                },
+                # Get registry with test_get_revoc_reg_entry
+                {
+                    "data": {
+                        "id": reg_id,
+                        "txnTime": 1234567890,
+                        "value": "...",
+                        "revocRegDefId": reg_id,
+                    },
+                },
+                # Second call to get_revoc_reg_delta
+                {
+                    "data": {
+                        "value": {
+                            "accum_to": {
+                                "value": {"accum": "ACCUM"},
+                                "txnTime": 1234567890,
+                            },
+                            "issued": [1, 2],
+                            "revoked": [3, 4],
+                        },
+                        "revocRegDefId": reg_id,
+                    },
+                },
+            ]
+            result = await ledger.get_revoc_reg_delta(reg_id)
+            assert result == (
+                {
+                    "ver": "1.0",
+                    "value": {"accum": "ACCUM", "issued": [1, 2], "revoked": [3, 4]},
+                },
+                1234567890,
+            )
+
+    @pytest.mark.asyncio
     async def test_send_revoc_reg_def(
         self,
         ledger: IndyVdrLedger,
@@ -1143,9 +1189,7 @@ class TestIndyVdrLedger:
                 return_value=json.dumps({"result": {"txnMetadata": {"seqNo": 1234}}}),
             ):
                 ledger.pool_handle.submit_request.return_value = {"status": "ok"}
-                result = await ledger.send_revoc_reg_entry(
-                    reg_id, "CL_ACCUM", reg_entry
-                )
+                result = await ledger.send_revoc_reg_entry(reg_id, "CL_ACCUM", reg_entry)
                 assert result == 1234
 
     @pytest.mark.asyncio

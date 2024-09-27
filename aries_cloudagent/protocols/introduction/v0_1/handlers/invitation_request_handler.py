@@ -6,11 +6,9 @@ from .....messaging.base_handler import (
     HandlerException,
     RequestContext,
 )
-
 from ....connections.v1_0.manager import ConnectionManager
-
-from ..messages.invitation_request import InvitationRequest as IntroInvitationRequest
 from ..messages.invitation import Invitation as IntroInvitation
+from ..messages.invitation_request import InvitationRequest as IntroInvitationRequest
 
 
 class InvitationRequestHandler(BaseHandler):
@@ -33,9 +31,7 @@ class InvitationRequestHandler(BaseHandler):
             profile = context.profile
             connection_mgr = ConnectionManager(profile)
             _connection, invite = await connection_mgr.create_invitation()
-            response = IntroInvitation(
-                invitation=invite, message=context.message.message
-            )
+            response = IntroInvitation(invitation=invite, message=context.message.message)
             response.assign_thread_from(context.message)
             response.assign_trace_from(context.message)
             await responder.send_reply(response)

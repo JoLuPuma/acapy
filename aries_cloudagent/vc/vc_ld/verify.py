@@ -2,18 +2,19 @@
 
 import asyncio
 from typing import List
+
 from pyld.jsonld import JsonLdProcessor
 
 from ..ld_proofs import (
-    LinkedDataProof,
+    AuthenticationProofPurpose,
     CredentialIssuancePurpose,
     DocumentLoaderMethod,
-    ProofPurpose,
-    AuthenticationProofPurpose,
-    verify as ld_proofs_verify,
     DocumentVerificationResult,
+    LinkedDataProof,
     LinkedDataProofException,
+    ProofPurpose,
 )
+from ..ld_proofs import verify as ld_proofs_verify
 from .models.credential import VerifiableCredentialSchema
 from .validation_result import PresentationVerificationResult
 
@@ -76,9 +77,7 @@ async def verify_credential(
             purpose=purpose,
         )
     except Exception as e:
-        return DocumentVerificationResult(
-            verified=False, document=credential, errors=[e]
-        )
+        return DocumentVerificationResult(verified=False, document=credential, errors=[e])
 
 
 async def _verify_presentation(
@@ -119,7 +118,7 @@ async def _verify_presentation(
                 credential=credential,
                 suites=suites,
                 document_loader=document_loader,
-                # FIXME: we don't want to interhit the authentication purpose
+                # FIXME: we don't want to inherit the authentication purpose
                 # from the presentation. However we do want to have subject
                 # authentication I guess
                 # purpose=purpose,

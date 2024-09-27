@@ -47,6 +47,7 @@ class ProblemReport(AgentMessage):
             noticed_time: Datetime when the problem was noticed
             tracking_uri: URI for tracking the problem
             escalation_uri: URI for escalating the problem
+            kwargs: Additional keyword arguments for message
         """
         super().__init__(**kwargs)
         self.description = description if description else None
@@ -70,12 +71,8 @@ class ProblemReportSchema(AgentMessageSchema):
         unknown = EXCLUDE
 
     description = fields.Dict(
-        keys=fields.Str(
-            metadata={"description": "Locale or 'code'", "example": "en-US"}
-        ),
-        values=fields.Str(
-            metadata={"description": "Problem description or error code"}
-        ),
+        keys=fields.Str(metadata={"description": "Locale or 'code'", "example": "en-US"}),
+        values=fields.Str(metadata={"description": "Problem description or error code"}),
         required=False,
         metadata={"description": "Human-readable localized problem descriptions"},
     )
@@ -85,12 +82,10 @@ class ProblemReportSchema(AgentMessageSchema):
             values=fields.Str(metadata={"description": "Problem text/number/value"}),
             metadata={"description": "Problem item"},
         ),
-        data_key="problem-items",
         required=False,
         metadata={"description": "List of problem items"},
     )
     who_retries = fields.Str(
-        data_key="who-retries",
         required=False,
         validate=validate.OneOf(["you", "me", "both", "none"]),
         metadata={
@@ -129,8 +124,8 @@ class ProblemReportSchema(AgentMessageSchema):
             "example": "you - agency",
         },
     )
-    time_noticed = fields.Str(
-        data_key="time-noticed",
+    noticed_time = fields.Str(
+        data_key="noticed_time",
         required=False,
         validate=RFC3339_DATETIME_VALIDATE,
         metadata={
@@ -161,6 +156,7 @@ class ProblemReportSchema(AgentMessageSchema):
 
         Args:
             data: The data to validate
+            kwargs: Additional keyword arguments
 
         Raises:
             ValidationError: if data has neither indy nor ld_proof

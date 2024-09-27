@@ -1,21 +1,19 @@
 """V2.0 issue-credential protocol manager."""
 
 import logging
-
 from typing import Mapping, Optional, Tuple
 
 from ....connections.models.conn_record import ConnRecord
-from ....core.oob_processor import OobRecord
 from ....core.error import BaseError
+from ....core.oob_processor import OobRecord
 from ....core.profile import Profile
 from ....messaging.responder import BaseResponder
 from ....storage.error import StorageError, StorageNotFoundError
-
 from .messages.cred_ack import V20CredAck
 from .messages.cred_format import V20CredFormat
 from .messages.cred_issue import V20CredIssue
 from .messages.cred_offer import V20CredOffer
-from .messages.cred_problem_report import V20CredProblemReport, ProblemReportReason
+from .messages.cred_problem_report import ProblemReportReason, V20CredProblemReport
 from .messages.cred_proposal import V20CredProposal
 from .messages.cred_request import V20CredRequest
 from .messages.inner.cred_preview import V20CredPreview
@@ -179,9 +177,11 @@ class V20CredManager:
 
         # Format specific receive_proposal handlers
         for format in cred_proposal_message.formats:
-            await V20CredFormat.Format.get(format.format).handler(
-                self.profile
-            ).receive_proposal(cred_ex_record, cred_proposal_message)
+            await (
+                V20CredFormat.Format.get(format.format)
+                .handler(self.profile)
+                .receive_proposal(cred_ex_record, cred_proposal_message)
+            )
 
         cred_ex_record.cred_proposal = cred_proposal_message
         cred_ex_record.state = V20CredExRecord.STATE_PROPOSAL_RECEIVED
@@ -204,12 +204,22 @@ class V20CredManager:
         """Create credential offer, update credential exchange record.
 
         Args:
-            cred_ex_record: credential exchange record for which to create offer
-            replacement_id: identifier to help coordinate credential replacement
-            comment: optional human-readable comment to set in offer message
+            cred_ex_record (V20CredExRecord): The credential exchange record for
+                which to create the offer.
+            counter_proposal (V20CredProposal, optional): The counter proposal for
+                the credential offer. Defaults to None.
+            replacement_id (str, optional): Identifier to help coordinate credential
+                replacement. Defaults to None.
+            comment (str, optional): Optional human-readable comment to set in the
+                offer message. Defaults to None.
 
         Returns:
-            A tuple (credential exchange record, credential offer message)
+            Tuple[V20CredExRecord, V20CredOffer]: A tuple containing the updated
+                credential exchange record and the credential offer message.
+
+        Raises:
+            V20CredManagerError: If unable to create the credential offer due to no
+                supported formats.
 
         """
 
@@ -399,12 +409,20 @@ class V20CredManager:
     ) -> V20CredExRecord:
         """Receive a credential request.
 
+        This method is called when a credential request is received from a connection.
+        It processes the request, updates the credential exchange record, and returns
+        the updated record.
+
         Args:
-            cred_request_message: credential request to receive
-            connection_id: connection identifier
+            cred_request_message: The credential request to receive.
+            connection_record: The connection record associated with the request.
+            oob_record: The out-of-band record associated with the request.
 
         Returns:
-            credential exchange record, updated
+            The updated credential exchange record.
+
+        Raises:
+            StorageNotFoundError: If the credential exchange record is not found.
 
         """
         # connection_id is None in the record if this is in response to
@@ -418,9 +436,7 @@ class V20CredManager:
             if (f := V20CredFormat.Format.get(format.format))
         ]
         handlers_without_offer = [
-            handler
-            for handler in handlers
-            if handler.can_receive_request_without_offer()
+            handler for handler in handlers if handler.can_receive_request_without_offer()
         ]
 
         async with self._profile.session() as session:
@@ -515,9 +531,7 @@ class V20CredManager:
                 )
 
         if len(issue_formats) == 0:
-            raise V20CredManagerError(
-                "Unable to issue credential. No supported formats"
-            )
+            raise V20CredManagerError("Unable to issue credential. No supported formats")
 
         cred_issue_message = V20CredIssue(
             replacement_id=replacement_id,

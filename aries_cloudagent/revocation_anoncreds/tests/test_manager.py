@@ -1,24 +1,21 @@
 import json
+from unittest import IsolatedAsyncioTestCase
 
 import pytest
-from aries_cloudagent.tests import mock
-from unittest import IsolatedAsyncioTestCase
 
 from aries_cloudagent.revocation.models.issuer_cred_rev_record import (
     IssuerCredRevRecord,
 )
+from aries_cloudagent.tests import mock
 
-from ...core.in_memory import InMemoryProfile
 from ...anoncreds.issuer import AnonCredsIssuer
+from ...core.in_memory import InMemoryProfile
 from ...protocols.issue_credential.v1_0.models.credential_exchange import (
     V10CredentialExchange,
 )
 from ...protocols.issue_credential.v2_0.models.cred_ex_record import V20CredExRecord
-
-
-from ..manager import RevocationManager, RevocationManagerError
-
 from .. import manager as test_module
+from ..manager import RevocationManager, RevocationManagerError
 
 TEST_DID = "LjgpST2rjsoxYegQDRm7EL"
 SCHEMA_NAME = "bc-reg"
@@ -497,9 +494,7 @@ class TestRevocationManager(IsolatedAsyncioTestCase):
             check_exchange_record = await V20CredExRecord.retrieve_by_id(
                 session, exchange_record.cred_ex_id
             )
-            assert (
-                check_exchange_record.state == V20CredExRecord.STATE_CREDENTIAL_REVOKED
-            )
+            assert check_exchange_record.state == V20CredExRecord.STATE_CREDENTIAL_REVOKED
 
             check_crev_record = await IssuerCredRevRecord.retrieve_by_id(
                 session, crev_record.record_id

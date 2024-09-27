@@ -1,8 +1,7 @@
 import json
-
 from unittest import TestCase
 
-from ..jwe import b64url, JweEnvelope, JweRecipient, from_b64url
+from ..jwe import JweEnvelope, JweRecipient, b64url, from_b64url
 
 IV = b"test nonce"
 TAG = b"test tag"
@@ -39,9 +38,9 @@ class TestJwe(TestCase):
         assert loaded.iv == IV
         assert loaded.tag == TAG
         assert loaded.aad == AAD
-        assert loaded.combined_aad == loaded.protected_bytes + b"." + b64url(
-            AAD
-        ).encode("utf-8")
+        assert loaded.combined_aad == loaded.protected_bytes + b"." + b64url(AAD).encode(
+            "utf-8"
+        )
         assert loaded.ciphertext == CIPHERTEXT
 
         recips = list(loaded.recipients)
@@ -74,9 +73,9 @@ class TestJwe(TestCase):
         assert loaded.iv == IV
         assert loaded.tag == TAG
         assert loaded.aad == AAD
-        assert loaded.combined_aad == loaded.protected_bytes + b"." + b64url(
-            AAD
-        ).encode("utf-8")
+        assert loaded.combined_aad == loaded.protected_bytes + b"." + b64url(AAD).encode(
+            "utf-8"
+        )
         assert loaded.ciphertext == CIPHERTEXT
 
         recips = list(loaded.recipients)
@@ -112,9 +111,9 @@ class TestJwe(TestCase):
         assert loaded.iv == IV
         assert loaded.tag == TAG
         assert loaded.aad == AAD
-        assert loaded.combined_aad == loaded.protected_bytes + b"." + b64url(
-            AAD
-        ).encode("utf-8")
+        assert loaded.combined_aad == loaded.protected_bytes + b"." + b64url(AAD).encode(
+            "utf-8"
+        )
         assert loaded.ciphertext == CIPHERTEXT
 
         recips = list(loaded.recipients)
@@ -145,9 +144,9 @@ class TestJwe(TestCase):
         assert loaded.iv == IV
         assert loaded.tag == TAG
         assert loaded.aad == AAD
-        assert loaded.combined_aad == loaded.protected_bytes + b"." + b64url(
-            AAD
-        ).encode("utf-8")
+        assert loaded.combined_aad == loaded.protected_bytes + b"." + b64url(AAD).encode(
+            "utf-8"
+        )
         assert loaded.ciphertext == CIPHERTEXT
 
         recips = list(loaded.recipients)

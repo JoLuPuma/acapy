@@ -1,12 +1,7 @@
-from unittest import mock
-from unittest import TestCase
-
-from unittest import IsolatedAsyncioTestCase
+from unittest import IsolatedAsyncioTestCase, TestCase, mock
 
 from .....didcomm_prefix import DIDCommPrefix
-
 from ...message_types import CANCEL_TRANSACTION
-
 from ..cancel_transaction import CancelTransaction
 
 
@@ -60,9 +55,7 @@ class TestCancelTransaction(TestCase, TestConfig):
             self.cancel_transaction
         )
 
-        assert (
-            cancel_transaction_dict is mock_cancel_transaction_schema_dump.return_value
-        )
+        assert cancel_transaction_dict is mock_cancel_transaction_schema_dump.return_value
 
 
 class TestCancelTransactionSchema(IsolatedAsyncioTestCase, TestConfig):

@@ -1,19 +1,18 @@
 import asyncio
 import logging
+from unittest import IsolatedAsyncioTestCase
+
 import pytest
 
 from aries_cloudagent.tests import mock
-from unittest import IsolatedAsyncioTestCase
 
 from .....core.in_memory import InMemoryProfile
-from .....storage.error import StorageNotFoundError
 from .....messaging.responder import BaseResponder, MockResponder
-
+from .....storage.error import StorageNotFoundError
 from ....didcomm_prefix import DIDCommPrefix
-
 from ..manager import V20DiscoveryMgr, V20DiscoveryMgrError
-from ..messages.queries import Queries, QueryItem
 from ..messages.disclosures import Disclosures
+from ..messages.queries import Queries, QueryItem
 from ..models.discovery_record import V20DiscoveryExchangeRecord
 
 TEST_DISCOVERY_EX_REC = V20DiscoveryExchangeRecord(
@@ -73,7 +72,7 @@ class TestV20DiscoveryManager(IsolatedAsyncioTestCase):
                 connection_id=test_conn_id,
             )
 
-    async def test_receive_disclosure_retreive_by_conn(self):
+    async def test_receive_disclosure_retrieve_by_conn(self):
         test_conn_id = "test123"
         self.queries.assign_thread_id("test123")
         with mock.patch.object(
@@ -102,7 +101,7 @@ class TestV20DiscoveryManager(IsolatedAsyncioTestCase):
                 connection_id=test_conn_id,
             )
 
-    async def test_receive_disclosure_retreive_by_conn_not_found(self):
+    async def test_receive_disclosure_retrieve_by_conn_not_found(self):
         test_conn_id = "test123"
         self.queries.assign_thread_id("test123")
         with mock.patch.object(
@@ -126,7 +125,7 @@ class TestV20DiscoveryManager(IsolatedAsyncioTestCase):
                 connection_id=test_conn_id,
             )
 
-    async def test_receive_disclosure_retreive_new_ex_rec(self):
+    async def test_receive_disclosure_retrieve_new_ex_rec(self):
         test_conn_id = "test123"
         with mock.patch.object(
             V20DiscoveryExchangeRecord, "save", autospec=True
@@ -172,9 +171,7 @@ class TestV20DiscoveryManager(IsolatedAsyncioTestCase):
             self._caplog.set_level(logging.WARNING)
             mock_receive_query.return_value = Disclosures()
             await self.manager.proactive_disclose_features("test123")
-            assert (
-                "Unable to send discover-features v2 disclosures" in self._caplog.text
-            )
+            assert "Unable to send discover-features v2 disclosures" in self._caplog.text
 
     async def test_check_if_disclosure_received(self):
         with mock.patch.object(
@@ -191,7 +188,7 @@ class TestV20DiscoveryManager(IsolatedAsyncioTestCase):
     async def test_create_and_send_query_x(self):
         with self.assertRaises(V20DiscoveryMgrError) as cm:
             await self.manager.create_and_send_query()
-        assert "Atleast one protocol or goal-code" in str(cm.exception)
+        assert "At least one protocol or goal-code" in str(cm.exception)
 
     async def test_create_and_send_query_with_connection(self):
         return_ex_rec = V20DiscoveryExchangeRecord(

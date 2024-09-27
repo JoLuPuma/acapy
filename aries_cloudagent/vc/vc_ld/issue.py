@@ -1,12 +1,12 @@
 """Verifiable Credential issuance methods."""
 
 from ..ld_proofs import (
-    LinkedDataProof,
-    ProofPurpose,
-    sign,
     CredentialIssuancePurpose,
     DocumentLoaderMethod,
+    LinkedDataProof,
     LinkedDataProofException,
+    ProofPurpose,
+    sign,
 )
 from .models.credential import CredentialSchema
 
@@ -20,7 +20,7 @@ async def issue(
 ) -> dict:
     """Issue a verifiable credential.
 
-    Takes the base credentail document, verifies it, and adds
+    Takes the base credential document, verifies it, and adds
     a digital signature to it.
 
     Args:
@@ -42,9 +42,7 @@ async def issue(
     # Validate credential
     errors = CredentialSchema().validate(credential)
     if len(errors) > 0:
-        raise LinkedDataProofException(
-            f"Credential contains invalid structure: {errors}"
-        )
+        raise LinkedDataProofException(f"Credential contains invalid structure: {errors}")
 
     # Set default proof purpose if not set
     if not purpose:

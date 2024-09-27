@@ -3,16 +3,21 @@
 import json
 import logging
 import sys
-import uuid
 from datetime import datetime
 from typing import Any, Mapping, Optional, Sequence, Type, TypeVar, Union
 
 from marshmallow import fields
+from uuid_utils import uuid4
 
 from ...cache.base import BaseCache
 from ...config.settings import BaseSettings
 from ...core.profile import ProfileSession
-from ...storage.base import BaseStorage, StorageDuplicateError, StorageNotFoundError
+from ...storage.base import (
+    DEFAULT_PAGE_SIZE,
+    BaseStorage,
+    StorageDuplicateError,
+    StorageNotFoundError,
+)
 from ...storage.record import StorageRecord
 from ..util import datetime_to_str, time_now
 from ..valid import INDY_ISO8601_DATETIME_EXAMPLE, INDY_ISO8601_DATETIME_VALIDATE
@@ -46,8 +51,7 @@ def match_post_filter(
         return (
             positive
             and all(
-                record.get(k) and record.get(k) in alts
-                for k, alts in post_filter.items()
+                record.get(k) and record.get(k) in alts for k, alts in post_filter.items()
             )
         ) or (
             (not positive)
@@ -224,11 +228,12 @@ class BaseRecord(BaseModel):
         Args:
             session: The profile session to use
             record_id: The ID of the record to find
+            for_update: Whether to lock the record for update
         """
 
         storage = session.inject(BaseStorage)
         result = await storage.get_record(
-            cls.RECORD_TYPE, record_id, {"forUpdate": for_update, "retrieveTags": False}
+            cls.RECORD_TYPE, record_id, options={"forUpdate": for_update}
         )
         vals = json.loads(result.value)
         return cls.from_storage(record_id, vals)
@@ -245,17 +250,19 @@ class BaseRecord(BaseModel):
         """Retrieve a record by tag filter.
 
         Args:
+            cls: The record class
             session: The profile session to use
             tag_filter: The filter dictionary to apply
             post_filter: Additional value filters to apply matching positively,
                 with sequence values specifying alternatives to match (hit any)
+            for_update: Whether to lock the record for update
         """
 
         storage = session.inject(BaseStorage)
         rows = await storage.find_all_records(
             cls.RECORD_TYPE,
             cls.prefix_tag_filter(tag_filter),
-            options={"forUpdate": for_update, "retrieveTags": False},
+            options={"forUpdate": for_update},
         )
         found = None
         for record in rows:
@@ -284,6 +291,8 @@ class BaseRecord(BaseModel):
         session: ProfileSession,
         tag_filter: dict = None,
         *,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
         post_filter_positive: dict = None,
         post_filter_negative: dict = None,
         alt: bool = False,
@@ -293,6 +302,8 @@ class BaseRecord(BaseModel):
         Args:
             session: The profile session to use
             tag_filter: An optional dictionary of tag filter clauses
+            limit: The maximum number of records to retrieve
+            offset: The offset to start retrieving records from
             post_filter_positive: Additional value filters to apply matching positively
             post_filter_negative: Additional value filters to apply matching negatively
             alt: set to match any (positive=True) value or miss all (positive=False)
@@ -300,29 +311,60 @@ class BaseRecord(BaseModel):
         """
 
         storage = session.inject(BaseStorage)
-        rows = await storage.find_all_records(
-            cls.RECORD_TYPE,
-            cls.prefix_tag_filter(tag_filter),
-            options={"retrieveTags": False},
-        )
+
+        tag_query = cls.prefix_tag_filter(tag_filter)
+        post_filter = post_filter_positive or post_filter_negative
+
+        # set flag to indicate if pagination is requested or not, then set defaults
+        paginated = limit is not None or offset is not None
+        limit = limit or DEFAULT_PAGE_SIZE
+        offset = offset or 0
+
+        if not post_filter and paginated:
+            # Only fetch paginated records if post-filter is not being applied
+            rows = await storage.find_paginated_records(
+                type_filter=cls.RECORD_TYPE,
+                tag_query=tag_query,
+                limit=limit,
+                offset=offset,
+            )
+        else:
+            rows = await storage.find_all_records(
+                type_filter=cls.RECORD_TYPE,
+                tag_query=tag_query,
+            )
+
+        num_results_post_filter = 0  # used if applying pagination post-filter
+        num_records_to_match = limit + offset  # ignored if not paginated
+
         result = []
         for record in rows:
-            vals = json.loads(record.value)
-            if match_post_filter(
-                vals,
-                post_filter_positive,
-                positive=True,
-                alt=alt,
-            ) and match_post_filter(
-                vals,
-                post_filter_negative,
-                positive=False,
-                alt=alt,
-            ):
-                try:
+            try:
+                vals = json.loads(record.value)
+                if not post_filter:  # pagination would already be applied if requested
                     result.append(cls.from_storage(record.id, vals))
-                except BaseModelError as err:
-                    raise BaseModelError(f"{err}, for record id {record.id}")
+                else:
+                    continue_processing = (
+                        not paginated or num_results_post_filter < num_records_to_match
+                    )
+                    if not continue_processing:
+                        break
+
+                    post_filter_match = match_post_filter(
+                        vals, post_filter_positive, positive=True, alt=alt
+                    ) and match_post_filter(
+                        vals, post_filter_negative, positive=False, alt=alt
+                    )
+
+                    if not post_filter_match:
+                        continue
+
+                    if num_results_post_filter >= offset:  # append only after offset
+                        result.append(cls.from_storage(record.id, vals))
+
+                    num_results_post_filter += 1
+            except (BaseModelError, json.JSONDecodeError, TypeError) as err:
+                raise BaseModelError(f"{err}, for record id {record.id}")
         return result
 
     async def save(
@@ -340,7 +382,7 @@ class BaseRecord(BaseModel):
             session: The profile session to use
             reason: A reason to add to the log
             log_params: Additional parameters to log
-            override: Override configured logging regimen, print to stderr instead
+            log_override: Override configured logging regimen, print to stderr instead
             event: Flag to override whether the event is sent
         """
 
@@ -355,7 +397,7 @@ class BaseRecord(BaseModel):
                 new_record = False
             else:
                 if not self._id:
-                    self._id = str(uuid.uuid4())
+                    self._id = str(uuid4())
                 self.created_at = self.updated_at
                 await storage.add_record(self.storage_record)
                 new_record = True
@@ -455,9 +497,7 @@ class BaseRecord(BaseModel):
     def strip_tag_prefix(cls, tags: dict):
         """Strip tilde from unencrypted tag names."""
 
-        return (
-            {(k[1:] if "~" in k else k): v for (k, v) in tags.items()} if tags else {}
-        )
+        return {(k[1:] if "~" in k else k): v for (k, v) in tags.items()} if tags else {}
 
     @classmethod
     def prefix_tag_filter(cls, tag_filter: dict):

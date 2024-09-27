@@ -5,10 +5,10 @@ An attach decorator embeds content or specifies appended content.
 
 import copy
 import json
-import uuid
 from typing import Any, Mapping, Sequence, Tuple, Union
 
 from marshmallow import EXCLUDE, fields, pre_load
+from uuid_utils import uuid4
 
 from ...did.did_key import DIDKey
 from ...wallet.base import BaseWallet
@@ -172,7 +172,7 @@ class AttachDecoratorDataJWSSchema(BaseModelSchema):
 
     @pre_load
     def validate_single_xor_multi_sig(self, data: Mapping, **kwargs):
-        """Ensure model is for either 1 or many sigatures, not mishmash of both."""
+        """Ensure model is for either 1 or many signatures, not mishmash of both."""
 
         if "signatures" in data:
             if any(k in data for k in ("header", "protected", "signature")):
@@ -364,7 +364,6 @@ class AttachDecoratorData(BaseModel):
                 json.dumps(
                     {
                         "alg": "EdDSA",
-                        "kid": did_key(verkey),
                         "jwk": {
                             "kty": "OKP",
                             "crv": "Ed25519",
@@ -430,6 +429,7 @@ class AttachDecoratorData(BaseModel):
 
         Args:
             wallet: Wallet to use to verify signature
+            signer_verkey: verkey of the signer to check against
 
         Returns:
             True if verification succeeds else False
@@ -563,7 +563,9 @@ class AttachDecorator(BaseModel):
             filename: file name
             lastmod_time: last modification time, "%Y-%m-%d %H:%M:%SZ"
             description: content description
+            byte_count: byte count of data included by reference
             data: payload, as per `AttachDecoratorData`
+            kwargs: additional keyword arguments
 
         """
         super().__init__(**kwargs)
@@ -621,7 +623,7 @@ class AttachDecorator(BaseModel):
             byte_count: optional attachment byte count
         """
         return AttachDecorator(
-            ident=ident or str(uuid.uuid4()),
+            ident=ident or str(uuid4()),
             description=description,
             filename=filename,
             mime_type="text/string",
@@ -656,15 +658,13 @@ class AttachDecorator(BaseModel):
 
         """
         return AttachDecorator(
-            ident=ident or str(uuid.uuid4()),
+            ident=ident or str(uuid4()),
             description=description,
             filename=filename,
             mime_type="application/json",
             lastmod_time=lastmod_time,
             byte_count=byte_count,
-            data=AttachDecoratorData(
-                base64_=bytes_to_b64(json.dumps(mapping).encode())
-            ),
+            data=AttachDecoratorData(base64_=bytes_to_b64(json.dumps(mapping).encode())),
         )
 
     @classmethod
@@ -693,7 +693,7 @@ class AttachDecorator(BaseModel):
 
         """
         return AttachDecorator(
-            ident=ident or str(uuid.uuid4()),
+            ident=ident or str(uuid4()),
             description=description,
             filename=filename,
             mime_type="application/json",
@@ -732,7 +732,7 @@ class AttachDecorator(BaseModel):
 
         """
         return AttachDecorator(
-            ident=ident or str(uuid.uuid4()),
+            ident=ident or str(uuid4()),
             description=description,
             filename=filename,
             mime_type=mime_type or "application/json",

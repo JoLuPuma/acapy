@@ -1,13 +1,12 @@
-import pytest
-
 from unittest import mock
+
+import pytest
 
 from ......messaging.models.base import BaseModelError
 from .....didcomm_prefix import DIDCommPrefix
 from ...message_types import PROBLEM_REPORT
-from ..problem_report import DIDXProblemReport
-
 from .. import problem_report as test_module
+from ..problem_report import DIDXProblemReport
 
 THID = "dummy-thid"
 PTHID = "dummy-pthid"
@@ -36,7 +35,5 @@ def test_missing_code():
 
 def test_unrecognized_code():
     with mock.patch.object(test_module, "LOGGER", autospec=True) as mock_logger:
-        DIDXProblemReport.deserialize(
-            {"description": {"code": "unknown", "en": "test"}}
-        )
+        DIDXProblemReport.deserialize({"description": {"code": "unknown", "en": "test"}})
     mock_logger.warning.assert_called_once()

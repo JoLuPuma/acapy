@@ -8,9 +8,9 @@ from aiohttp_apispec import (
     request_schema,
     response_schema,
 )
-
 from marshmallow import fields, validate
 
+from ....admin.decorators.auth import tenant_authentication
 from ....admin.request_context import AdminRequestContext
 from ....connections.models.conn_record import ConnRecord
 from ....messaging.models.base import BaseModelError
@@ -95,7 +95,7 @@ class MediationIdMatchInfoSchema(OpenAPISchema):
 
 
 class GetKeylistQuerySchema(OpenAPISchema):
-    """Get keylist query string paramaters."""
+    """Get keylist query string parameters."""
 
     conn_id = CONNECTION_ID_SCHEMA
     role = fields.Str(
@@ -106,8 +106,8 @@ class GetKeylistQuerySchema(OpenAPISchema):
         required=False,
         metadata={
             "description": (
-                f"Filer on role, '{MediationRecord.ROLE_CLIENT}' for keys     mediated"
-                f" by other agents, '{MediationRecord.ROLE_SERVER}' for keys    "
+                f"Filer on role, '{MediationRecord.ROLE_CLIENT}' for keys mediated"
+                f" by other agents, '{MediationRecord.ROLE_SERVER}' for keys"
                 " mediated by this agent"
             )
         },
@@ -169,6 +169,7 @@ def mediation_sort_key(mediation: dict):
 )
 @querystring_schema(MediationListQueryStringSchema())
 @response_schema(MediationListSchema(), 200)
+@tenant_authentication
 async def list_mediation_requests(request: web.BaseRequest):
     """List mediation requests for either client or server role."""
     context: AdminRequestContext = request["context"]
@@ -194,6 +195,7 @@ async def list_mediation_requests(request: web.BaseRequest):
 @docs(tags=["mediation"], summary="Retrieve mediation request record")
 @match_info_schema(MediationIdMatchInfoSchema())
 @response_schema(MediationRecordSchema(), 200)
+@tenant_authentication
 async def retrieve_mediation_request(request: web.BaseRequest):
     """Retrieve a single mediation request."""
     context: AdminRequestContext = request["context"]
@@ -201,9 +203,7 @@ async def retrieve_mediation_request(request: web.BaseRequest):
     mediation_id = request.match_info["mediation_id"]
     try:
         async with context.profile.session() as session:
-            mediation_record = await MediationRecord.retrieve_by_id(
-                session, mediation_id
-            )
+            mediation_record = await MediationRecord.retrieve_by_id(session, mediation_id)
         result = mediation_record.serialize()
     except StorageNotFoundError as err:
         raise web.HTTPNotFound(reason=err.roll_up) from err
@@ -216,6 +216,7 @@ async def retrieve_mediation_request(request: web.BaseRequest):
 @docs(tags=["mediation"], summary="Delete mediation request by ID")
 @match_info_schema(MediationIdMatchInfoSchema())
 @response_schema(MediationRecordSchema, 200)
+@tenant_authentication
 async def delete_mediation_request(request: web.BaseRequest):
     """Delete a mediation request by ID."""
     context: AdminRequestContext = request["context"]
@@ -223,9 +224,7 @@ async def delete_mediation_request(request: web.BaseRequest):
     mediation_id = request.match_info["mediation_id"]
     try:
         async with context.profile.session() as session:
-            mediation_record = await MediationRecord.retrieve_by_id(
-                session, mediation_id
-            )
+            mediation_record = await MediationRecord.retrieve_by_id(session, mediation_id)
         result = mediation_record.serialize()
         async with context.profile.session() as session:
             await mediation_record.delete_record(session)
@@ -241,6 +240,7 @@ async def delete_mediation_request(request: web.BaseRequest):
 @match_info_schema(ConnectionsConnIdMatchInfoSchema())
 @request_schema(MediationCreateRequestSchema())
 @response_schema(MediationRecordSchema(), 201)
+@tenant_authentication
 async def request_mediation(request: web.BaseRequest):
     """Request mediation from connection."""
     context: AdminRequestContext = request["context"]
@@ -280,6 +280,7 @@ async def request_mediation(request: web.BaseRequest):
 @docs(tags=["mediation"], summary="Grant received mediation")
 @match_info_schema(MediationIdMatchInfoSchema())
 @response_schema(MediationGrantSchema(), 201)
+@tenant_authentication
 async def mediation_request_grant(request: web.BaseRequest):
     """Grant a stored mediation request."""
     context: AdminRequestContext = request["context"]
@@ -303,6 +304,7 @@ async def mediation_request_grant(request: web.BaseRequest):
 @match_info_schema(MediationIdMatchInfoSchema())
 @request_schema(AdminMediationDenySchema())
 @response_schema(MediationDenySchema(), 201)
+@tenant_authentication
 async def mediation_request_deny(request: web.BaseRequest):
     """Deny a stored mediation request."""
     context: AdminRequestContext = request["context"]
@@ -329,6 +331,7 @@ async def mediation_request_deny(request: web.BaseRequest):
 )
 @querystring_schema(GetKeylistQuerySchema())
 @response_schema(KeylistSchema(), 200)
+@tenant_authentication
 async def get_keylist(request: web.BaseRequest):
     """Retrieve keylists by connection or role."""
     context: AdminRequestContext = request["context"]
@@ -358,6 +361,7 @@ async def get_keylist(request: web.BaseRequest):
 @querystring_schema(KeylistQueryPaginateQuerySchema())
 @request_schema(KeylistQueryFilterRequestSchema())
 @response_schema(KeylistQuerySchema(), 201)
+@tenant_authentication
 async def send_keylist_query(request: web.BaseRequest):
     """Send keylist query to mediator."""
     context: AdminRequestContext = request["context"]
@@ -394,6 +398,7 @@ async def send_keylist_query(request: web.BaseRequest):
 @match_info_schema(MediationIdMatchInfoSchema())
 @request_schema(KeylistUpdateRequestSchema())
 @response_schema(KeylistUpdateSchema(), 201)
+@tenant_authentication
 async def send_keylist_update(request: web.BaseRequest):
     """Send keylist update to mediator."""
     context: AdminRequestContext = request["context"]
@@ -439,13 +444,12 @@ async def send_keylist_update(request: web.BaseRequest):
 
 @docs(tags=["mediation"], summary="Get default mediator")
 @response_schema(MediationRecordSchema(), 200)
+@tenant_authentication
 async def get_default_mediator(request: web.BaseRequest):
     """Get default mediator."""
     context: AdminRequestContext = request["context"]
     try:
-        default_mediator = await MediationManager(
-            context.profile
-        ).get_default_mediator()
+        default_mediator = await MediationManager(context.profile).get_default_mediator()
         results = default_mediator.serialize() if default_mediator else {}
     except (StorageError, BaseModelError) as err:
         raise web.HTTPBadRequest(reason=err.roll_up) from err
@@ -455,6 +459,7 @@ async def get_default_mediator(request: web.BaseRequest):
 @docs(tags=["mediation"], summary="Set default mediator")
 @match_info_schema(MediationIdMatchInfoSchema())
 @response_schema(MediationRecordSchema(), 201)
+@tenant_authentication
 async def set_default_mediator(request: web.BaseRequest):
     """Set default mediator."""
     context: AdminRequestContext = request["context"]
@@ -471,6 +476,7 @@ async def set_default_mediator(request: web.BaseRequest):
 
 @docs(tags=["mediation"], summary="Clear default mediator")
 @response_schema(MediationRecordSchema(), 201)
+@tenant_authentication
 async def clear_default_mediator(request: web.BaseRequest):
     """Clear set default mediator."""
     context: AdminRequestContext = request["context"]
@@ -489,6 +495,7 @@ async def clear_default_mediator(request: web.BaseRequest):
 @request_schema(MediationIdMatchInfoSchema())
 # TODO Fix this response so that it adequately represents Optionals
 @response_schema(KeylistUpdateSchema(), 200)
+@tenant_authentication
 async def update_keylist_for_connection(request: web.BaseRequest):
     """Update keylist for a connection."""
     context: AdminRequestContext = request["context"]

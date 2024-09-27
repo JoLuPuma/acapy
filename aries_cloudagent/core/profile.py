@@ -3,6 +3,7 @@
 import logging
 from abc import ABC, abstractmethod
 from typing import Any, Mapping, Optional, Type
+from weakref import ref
 
 from ..config.base import InjectionError
 from ..config.injection_context import InjectionContext
@@ -30,9 +31,12 @@ class Profile(ABC):
         created: bool = False,
     ):
         """Initialize a base profile."""
-        self._context = context or InjectionContext()
         self._created = created
         self._name = name or Profile.DEFAULT_NAME
+
+        context = context or InjectionContext()
+        self._context = context.start_scope()
+        self._context.injector.bind_instance(Profile, ref(self))
 
     @property
     def backend(self) -> str:
@@ -80,6 +84,7 @@ class Profile(ABC):
 
         Args:
             cls: The base class to retrieve an instance of
+            base_cls: The base class to retrieve
             settings: An optional mapping providing configuration to the provider
 
         Returns:
@@ -159,9 +164,11 @@ class ProfileSession(ABC):
         self._active = False
         self._awaited = False
         self._entered = 0
-        self._context = (context or profile.context).start_scope("session", settings)
+        self._context = (context or profile.context).start_scope(settings)
         self._profile = profile
         self._events = []
+
+        self._context.injector.bind_instance(ProfileSession, ref(self))
 
     async def _setup(self):
         """Create the underlying session or transaction."""
@@ -260,11 +267,12 @@ class ProfileSession(ABC):
         If we are in an active transaction, just queue the event, otherwise emit it.
 
         Args:
-            session: The profile session to use
-            payload: The event payload
+            topic (str): The topic of the event.
+            payload (Any): The payload of the event.
+            force_emit (bool, optional): If True, force the event to be emitted even
+                if there is an active transaction. Defaults to False.
         """
 
-        # TODO check transaction, either queue or emit event
         if force_emit or (not self.is_transaction):
             # just emit directly
             await self.profile.notify(topic, payload)
@@ -285,11 +293,15 @@ class ProfileSession(ABC):
         """Get the provided instance of a given class identifier.
 
         Args:
-            cls: The base class to retrieve an instance of
-            settings: An optional mapping providing configuration to the provider
+            base_cls (Type[InjectType]): The base class to retrieve an instance of.
+            settings (Mapping[str, object], optional): An optional mapping providing
+                configuration to the provider.
 
         Returns:
-            An instance of the base class, or None
+            InjectType: An instance of the base class, or None.
+
+        Raises:
+            ProfileSessionInactiveError: If the profile session is inactive.
 
         """
         if not self._active:
@@ -331,7 +343,6 @@ class ProfileManagerProvider(BaseProvider):
         "askar": "aries_cloudagent.askar.profile.AskarProfileManager",
         "askar-anoncreds": "aries_cloudagent.askar.profile_anon.AskarAnonProfileManager",
         "in_memory": "aries_cloudagent.core.in_memory.InMemoryProfileManager",
-        "indy": "aries_cloudagent.indy.sdk.profile.IndySdkProfileManager",
     }
 
     def __init__(self):

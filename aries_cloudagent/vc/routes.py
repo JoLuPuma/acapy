@@ -3,30 +3,26 @@
 from aiohttp import web
 from aiohttp_apispec import docs, request_schema, response_schema
 from marshmallow.exceptions import ValidationError
-import uuid
+from uuid_utils import uuid4
+
+from ..admin.decorators.auth import tenant_authentication
 from ..admin.request_context import AdminRequestContext
-from ..storage.error import StorageError, StorageNotFoundError, StorageDuplicateError
-from ..wallet.error import WalletError
-from ..wallet.base import BaseWallet
 from ..config.base import InjectionError
 from ..resolver.base import ResolverError
+from ..storage.error import StorageDuplicateError, StorageError, StorageNotFoundError
 from ..storage.vc_holder.base import VCHolder
+from ..wallet.base import BaseWallet
+from ..wallet.error import WalletError
+from .vc_ld.manager import VcLdpManager, VcLdpManagerError
 from .vc_ld.models import web_schemas
-from .vc_ld.manager import VcLdpManager
-from .vc_ld.manager import VcLdpManagerError
-from .vc_ld.models.credential import (
-    VerifiableCredential,
-)
-
-from .vc_ld.models.presentation import (
-    VerifiablePresentation,
-)
-
+from .vc_ld.models.credential import VerifiableCredential
 from .vc_ld.models.options import LDProofVCOptions
+from .vc_ld.models.presentation import VerifiablePresentation
 
 
 @docs(tags=["vc-api"], summary="List credentials")
 @response_schema(web_schemas.ListCredentialsResponse(), 200, description="")
+@tenant_authentication
 async def list_credentials_route(request: web.BaseRequest):
     """Request handler for issuing a credential.
 
@@ -46,6 +42,7 @@ async def list_credentials_route(request: web.BaseRequest):
 
 @docs(tags=["vc-api"], summary="Fetch credential by ID")
 @response_schema(web_schemas.FetchCredentialResponse(), 200, description="")
+@tenant_authentication
 async def fetch_credential_route(request: web.BaseRequest):
     """Request handler for issuing a credential.
 
@@ -66,6 +63,7 @@ async def fetch_credential_route(request: web.BaseRequest):
 @docs(tags=["vc-api"], summary="Issue a credential")
 @request_schema(web_schemas.IssueCredentialRequest())
 @response_schema(web_schemas.IssueCredentialResponse(), 200, description="")
+@tenant_authentication
 async def issue_credential_route(request: web.BaseRequest):
     """Request handler for issuing a credential.
 
@@ -81,7 +79,7 @@ async def issue_credential_route(request: web.BaseRequest):
         options = {} if "options" not in body else body["options"]
 
         # We derive the proofType from the issuer DID if not provided in options
-        if not options.get("type", None) and not options.get("proofType", None):
+        if not options.get("proofType", None):
             issuer = credential["issuer"]
             did = issuer if isinstance(issuer, str) else issuer["id"]
             async with context.session() as session:
@@ -93,10 +91,6 @@ async def issue_credential_route(request: web.BaseRequest):
                 options["proofType"] = "Ed25519Signature2020"
             elif key_type == "bls12381g2":
                 options["proofType"] = "BbsBlsSignature2020"
-        else:
-            options["proofType"] = (
-                options.pop("type") if "type" in options else options["proofType"]
-            )
 
         credential = VerifiableCredential.deserialize(credential)
         options = LDProofVCOptions.deserialize(options)
@@ -111,6 +105,7 @@ async def issue_credential_route(request: web.BaseRequest):
 @docs(tags=["vc-api"], summary="Verify a credential")
 @request_schema(web_schemas.VerifyCredentialRequest())
 @response_schema(web_schemas.VerifyCredentialResponse(), 200, description="")
+@tenant_authentication
 async def verify_credential_route(request: web.BaseRequest):
     """Request handler for verifying a credential.
 
@@ -151,7 +146,7 @@ async def store_credential_route(request: web.BaseRequest):
 
     try:
         vc = body["verifiableCredential"]
-        cred_id = vc["id"] if "id" in vc else f"urn:uuid:{str(uuid.uuid4())}"
+        cred_id = vc["id"] if "id" in vc else f"urn:uuid:{str(uuid4())}"
         options = {} if "options" not in body else body["options"]
 
         vc = VerifiableCredential.deserialize(vc)
@@ -175,6 +170,7 @@ async def store_credential_route(request: web.BaseRequest):
 @docs(tags=["vc-api"], summary="Prove a presentation")
 @request_schema(web_schemas.ProvePresentationRequest())
 @response_schema(web_schemas.ProvePresentationResponse(), 200, description="")
+@tenant_authentication
 async def prove_presentation_route(request: web.BaseRequest):
     """Request handler for proving a presentation.
 
@@ -190,7 +186,7 @@ async def prove_presentation_route(request: web.BaseRequest):
         options = {} if "options" not in body else body["options"]
 
         # We derive the proofType from the holder DID if not provided in options
-        if not options.get("type", None):
+        if not options.get("proofType", None):
             holder = presentation["holder"]
             did = holder if isinstance(holder, str) else holder["id"]
             async with context.session() as session:
@@ -202,8 +198,6 @@ async def prove_presentation_route(request: web.BaseRequest):
                 options["proofType"] = "Ed25519Signature2020"
             elif key_type == "bls12381g2":
                 options["proofType"] = "BbsBlsSignature2020"
-        else:
-            options["proofType"] = options.pop("type")
 
         presentation = VerifiablePresentation.deserialize(presentation)
         options = LDProofVCOptions.deserialize(options)
@@ -217,6 +211,7 @@ async def prove_presentation_route(request: web.BaseRequest):
 @docs(tags=["vc-api"], summary="Verify a Presentation")
 @request_schema(web_schemas.VerifyPresentationRequest())
 @response_schema(web_schemas.VerifyPresentationResponse(), 200, description="")
+@tenant_authentication
 async def verify_presentation_route(request: web.BaseRequest):
     """Request handler for verifying a presentation.
 

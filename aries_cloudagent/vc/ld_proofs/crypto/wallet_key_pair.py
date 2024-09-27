@@ -6,9 +6,7 @@ from ....core.profile import Profile
 from ....wallet.base import BaseWallet
 from ....wallet.key_type import KeyType
 from ....wallet.util import b58_to_bytes
-
 from ..error import LinkedDataProofException
-
 from .key_pair import KeyPair
 
 
@@ -41,9 +39,7 @@ class WalletKeyPair(KeyPair):
                 from_verkey=self.public_key_base58,
             )
 
-    async def verify(
-        self, message: Union[List[bytes], bytes], signature: bytes
-    ) -> bool:
+    async def verify(self, message: Union[List[bytes], bytes], signature: bytes) -> bool:
         """Verify message against signature using wallet."""
         if not self.public_key_base58:
             raise LinkedDataProofException(

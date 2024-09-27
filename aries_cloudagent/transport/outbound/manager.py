@@ -4,20 +4,16 @@ import asyncio
 import json
 import logging
 import time
-
 from typing import Callable, Type
 from urllib.parse import urlparse
 
 from ...connections.models.connection_target import ConnectionTarget
 from ...core.profile import Profile
-from ...utils.classloader import ClassLoader, ModuleLoadError, ClassNotFoundError
+from ...utils.classloader import ClassLoader, ClassNotFoundError, ModuleLoadError
 from ...utils.stats import Collector
 from ...utils.task_queue import CompletedTask, TaskQueue, task_exc_info
-
-from ...utils.tracing import trace_event, get_timer
-
+from ...utils.tracing import get_timer, trace_event
 from ..wire_format import BaseWireFormat
-
 from .base import (
     BaseOutboundTransport,
     OutboundDeliveryError,
@@ -39,7 +35,7 @@ class OutboundTransportManager:
         """Initialize a `OutboundTransportManager` instance.
 
         Args:
-            root_profile: The application root profile
+            profile: The active profile for the request
             handle_not_delivered: An optional handler for undelivered messages
 
         """
@@ -105,13 +101,18 @@ class OutboundTransportManager:
         """Register a new outbound transport class.
 
         Args:
-            transport_class: Transport class to register
+            transport_class (Type[BaseOutboundTransport]): The transport class to
+                register.
+            transport_id (str, optional): The ID of the transport. If not provided, the
+                qualified name of the transport class will be used as the ID.
+
+        Returns:
+            str: The ID of the registered transport.
 
         Raises:
-            OutboundTransportRegistrationError: If the imported class does not
-                specify a schemes attribute
-            OutboundTransportRegistrationError: If the scheme has already been
-                registered
+            OutboundTransportRegistrationError: If the imported class does not specify
+                a `schemes` attribute.
+            OutboundTransportRegistrationError: If the scheme has already been registered.
 
         """
         try:
@@ -201,9 +202,7 @@ class OutboundTransportManager:
         # Grab the scheme from the uri
         scheme = urlparse(endpoint).scheme
         if scheme == "":
-            raise OutboundDeliveryError(
-                f"The uri '{endpoint}' does not specify a scheme"
-            )
+            raise OutboundDeliveryError(f"The uri '{endpoint}' does not specify a scheme")
 
         # Look up transport that is registered to handle this scheme
         transport_id = self.get_running_transport_for_scheme(scheme)
@@ -325,9 +324,7 @@ class OutboundTransportManager:
         """Handle completion of the drain process."""
         exc_info = task_exc_info(task)
         if exc_info:
-            LOGGER.exception(
-                "Exception in outbound queue processing:", exc_info=exc_info
-            )
+            LOGGER.exception("Exception in outbound queue processing:", exc_info=exc_info)
         if self._process_task and self._process_task.done():
             self._process_task = None
 
@@ -377,8 +374,7 @@ class OutboundTransportManager:
                     trace_event(
                         self.root_profile.settings,
                         queued.message if queued.message else queued.payload,
-                        outcome="OutboundTransportManager.DELIVER.END."
-                        + queued.endpoint,
+                        outcome="OutboundTransportManager.DELIVER.END." + queued.endpoint,
                         perf_counter=p_time,
                     )
 
@@ -474,40 +470,43 @@ class OutboundTransportManager:
         )
         return queued.task
 
+    def _finished_deliver_error_handler(self, queued: QueuedOutboundMessage, retry: bool):
+        if retry:
+            LOGGER.debug(
+                (
+                    ">>> Error when posting to: %s; "
+                    "Error: %s; "
+                    "Payload: %s; Re-queue failed message ..."
+                ),
+                queued.endpoint,
+                queued.error,
+                queued.payload,
+            )
+        else:
+            err_msg = ">>> Outbound message failed to deliver, NOT Re-queued."
+            if "/webhook/topic" in queued.endpoint:
+                LOGGER.warning(
+                    err_msg,
+                    exc_info=queued.error,
+                )
+            else:
+                LOGGER.exception(
+                    err_msg,
+                    exc_info=queued.error,
+                )
+
     def finished_deliver(self, queued: QueuedOutboundMessage, completed: CompletedTask):
         """Handle completion of queued message delivery."""
         if completed.exc_info:
             queued.error = completed.exc_info
 
             if queued.retries:
-                if LOGGER.isEnabledFor(logging.DEBUG):
-                    LOGGER.error(
-                        (
-                            ">>> Error when posting to: %s; "
-                            "Error: %s; "
-                            "Payload: %s; Re-queue failed message ..."
-                        ),
-                        queued.endpoint,
-                        queued.error,
-                        queued.payload,
-                    )
-                else:
-                    LOGGER.error(
-                        (
-                            ">>> Error when posting to: %s; "
-                            "Error: %s; Re-queue failed message ..."
-                        ),
-                        queued.endpoint,
-                        queued.error,
-                    )
+                self._finished_deliver_error_handler(queued, retry=True)
                 queued.retries -= 1
                 queued.state = QueuedOutboundMessage.STATE_RETRY
                 queued.retry_at = time.perf_counter() + 10
             else:
-                LOGGER.exception(
-                    ">>> Outbound message failed to deliver, NOT Re-queued.",
-                    exc_info=queued.error,
-                )
+                self._finished_deliver_error_handler(queued, retry=False)
                 queued.state = QueuedOutboundMessage.STATE_DONE
         else:
             queued.error = None

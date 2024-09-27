@@ -1,10 +1,9 @@
-from aries_cloudagent.tests import mock
 from unittest import IsolatedAsyncioTestCase
 
+from aries_cloudagent.tests import mock
+
 from ....core.in_memory import InMemoryProfile
-
 from ...outbound.message import OutboundMessage
-
 from ...wire_format import BaseWireFormat
 from ..base import InboundTransportConfiguration, InboundTransportRegistrationError
 from ..manager import InboundTransportManager
@@ -162,9 +161,7 @@ class TestInboundTransportManager(IsolatedAsyncioTestCase):
         mgr.closed_session(mock_session)
 
     async def test_process_undelivered(self):
-        self.profile.context.update_settings(
-            {"transport.enable_undelivered_queue": True}
-        )
+        self.profile.context.update_settings({"transport.enable_undelivered_queue": True})
         test_verkey = "test-verkey"
         test_wire_format = mock.MagicMock()
         mgr = InboundTransportManager(self.profile, None)

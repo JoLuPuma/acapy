@@ -1,15 +1,14 @@
 from unittest import IsolatedAsyncioTestCase
+
 from aries_cloudagent.tests import mock
 
 from ....core.in_memory import InMemoryProfile
-
 from ...base import BaseLedger
+from ...indy_vdr import IndyVdrLedger, IndyVdrLedgerPool
 from ...multiple_ledger.base_manager import (
     BaseMultipleLedgerManager,
     MultipleLedgerManagerError,
 )
-from ...indy import IndySdkLedger, IndySdkLedgerPool
-
 from ..ledger_requests_executor import IndyLedgerRequestsExecutor
 
 
@@ -26,9 +25,7 @@ class TestIndyLedgerRequestsExecutor(IsolatedAsyncioTestCase):
                 "genesis_transactions": "genesis_transactions",
             }
         ]
-        self.ledger = IndySdkLedger(
-            IndySdkLedgerPool("test_prod_1", checked=True), self.profile
-        )
+        self.ledger = IndyVdrLedger(IndyVdrLedgerPool("test_prod_1"), self.profile)
         self.profile.context.injector.bind_instance(
             BaseMultipleLedgerManager,
             mock.MagicMock(

@@ -1,18 +1,23 @@
-from aries_cloudagent.tests import mock
 from unittest import IsolatedAsyncioTestCase
 
+from aries_cloudagent.tests import mock
+
 from .....admin.request_context import AdminRequestContext
+from .....core.in_memory import InMemoryProfile
 from .....wallet.base import BaseWallet
-
 from .. import routes as test_module
-
 from . import CRED_DEF_ID
 
 
 class TestCredentialRoutes(IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.session_inject = {}
-        self.context = AdminRequestContext.test_context(self.session_inject)
+        profile = InMemoryProfile.test_profile(
+            settings={
+                "admin.admin_api_key": "secret-key",
+            }
+        )
+        self.context = AdminRequestContext.test_context(self.session_inject, profile)
         self.request_dict = {
             "context": self.context,
             "outbound_message_router": mock.CoroutineMock(),
@@ -22,6 +27,7 @@ class TestCredentialRoutes(IsolatedAsyncioTestCase):
             match_info={},
             query={},
             __getitem__=lambda _, k: self.request_dict[k],
+            headers={"x-api-key": "secret-key"},
         )
 
     async def test_credential_exchange_list(self):
@@ -80,9 +86,7 @@ class TestCredentialRoutes(IsolatedAsyncioTestCase):
 
             with mock.patch.object(test_module.web, "json_response") as mock_response:
                 await test_module.credential_exchange_retrieve(self.request)
-                mock_response.assert_called_once_with(
-                    mock_cred_ex.serialize.return_value
-                )
+                mock_response.assert_called_once_with(mock_cred_ex.serialize.return_value)
 
     async def test_credential_exchange_retrieve_not_found(self):
         self.request.match_info = {"cred_ex_id": "dummy"}
@@ -123,9 +127,7 @@ class TestCredentialRoutes(IsolatedAsyncioTestCase):
             test_module, "CredentialManager", autospec=True
         ) as mock_credential_manager, mock.patch.object(
             test_module.CredentialPreview, "deserialize", autospec=True
-        ), mock.patch.object(
-            test_module.web, "json_response"
-        ) as mock_response:
+        ), mock.patch.object(test_module.web, "json_response") as mock_response:
             mock_credential_manager.return_value.create_offer = mock.CoroutineMock()
 
             mock_credential_manager.return_value.create_offer.return_value = (
@@ -156,9 +158,7 @@ class TestCredentialRoutes(IsolatedAsyncioTestCase):
             test_module, "CredentialManager", autospec=True
         ) as mock_credential_manager, mock.patch.object(
             test_module.CredentialPreview, "deserialize", autospec=True
-        ), mock.patch.object(
-            test_module.web, "json_response"
-        ) as mock_response:
+        ), mock.patch.object(test_module.web, "json_response") as mock_response:
             mock_credential_manager.return_value.create_offer = mock.CoroutineMock()
 
             mock_credential_manager.return_value.create_offer.return_value = (
@@ -194,9 +194,7 @@ class TestCredentialRoutes(IsolatedAsyncioTestCase):
             test_module, "CredentialManager", autospec=True
         ) as mock_credential_manager, mock.patch.object(
             test_module.CredentialPreview, "deserialize", autospec=True
-        ), mock.patch.object(
-            test_module.web, "json_response"
-        ) as mock_response:
+        ), mock.patch.object(test_module.web, "json_response") as mock_response:
             mock_credential_manager.return_value.create_offer = mock.CoroutineMock()
 
             mock_credential_manager.return_value.create_offer.return_value = (

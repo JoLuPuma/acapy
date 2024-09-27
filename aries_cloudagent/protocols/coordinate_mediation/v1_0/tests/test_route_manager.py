@@ -1,12 +1,13 @@
-from aries_cloudagent.tests import mock
 import pytest
+
+from aries_cloudagent.tests import mock
 
 from .....connections.models.conn_record import ConnRecord
 from .....core.in_memory import InMemoryProfile
-from .....wallet.base import BaseWallet
 from .....core.profile import Profile
 from .....messaging.responder import BaseResponder, MockResponder
 from .....storage.error import StorageNotFoundError
+from .....wallet.base import BaseWallet
 from .....wallet.did_info import DIDInfo
 from .....wallet.did_method import SOV
 from .....wallet.in_memory import InMemoryWallet
@@ -432,7 +433,7 @@ async def test_route_public_did(profile: Profile, route_manager: RouteManager):
 async def test_route_verkey(profile: Profile, route_manager: RouteManager):
     await route_manager.route_verkey(profile, "test-verkey")
     route_manager._route_for_key.assert_called_once_with(
-        profile, "test-verkey", skip_if_exists=True
+        profile, "test-verkey", None, skip_if_exists=True
     )
 
 
@@ -693,9 +694,7 @@ async def test_mediation_routing_info_with_mediator(
         routing_keys=[TEST_ROUTE_VERKEY_REF],
         endpoint="http://mediator.example.com",
     )
-    keys, endpoint = await mediation_route_manager.routing_info(
-        profile, mediation_record
-    )
+    keys, endpoint = await mediation_route_manager.routing_info(profile, mediation_record)
     assert keys == mediation_record.routing_keys
     assert endpoint == mediation_record.endpoint
 

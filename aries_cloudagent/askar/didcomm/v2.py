@@ -1,14 +1,13 @@
 """DIDComm v2 envelope handling via Askar backend."""
 
 import json
-
 from collections import OrderedDict
 from typing import Mapping, Tuple, Union
 
-from aries_askar import ecdh, AskarError, Key, KeyAlg, Session
+from aries_askar import AskarError, Key, KeyAlg, Session, ecdh
 from marshmallow import ValidationError
 
-from ...utils.jwe import b64url, from_b64url, JweEnvelope, JweRecipient
+from ...utils.jwe import JweEnvelope, JweRecipient, b64url, from_b64url
 from ...wallet.base import WalletError
 
 
@@ -200,9 +199,7 @@ def ecdh_1pu_decrypt(
 
     enc_alg = wrapper.protected.get("enc")
     if enc_alg not in ("A128CBC-HS256", "A256CBC-HS512"):
-        raise DidcommEnvelopeError(
-            f"Unsupported ECDH-1PU content encryption: {enc_alg}"
-        )
+        raise DidcommEnvelopeError(f"Unsupported ECDH-1PU content encryption: {enc_alg}")
 
     recip = wrapper.get_recipient(recip_kid)
     if not recip:

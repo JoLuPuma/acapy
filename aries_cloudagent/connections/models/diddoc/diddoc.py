@@ -18,11 +18,9 @@ limitations under the License.
 
 import json
 import logging
-
 from typing import List, Sequence, Union
 
 from ....did.did_key import DIDKey
-
 from .publickey import PublicKey, PublicKeyType
 from .service import Service
 from .util import canon_did, canon_ref, ok_did, resource
@@ -305,9 +303,7 @@ class DIDDoc:
                 rv.did,
                 service.get(
                     "id",
-                    canon_ref(
-                        rv.did, "assigned-service-{}".format(len(rv.service)), ";"
-                    ),
+                    canon_ref(rv.did, "assigned-service-{}".format(len(rv.service)), ";"),
                 ),
                 service["type"],
                 rv.add_service_pubkeys(service, "recipientKeys"),

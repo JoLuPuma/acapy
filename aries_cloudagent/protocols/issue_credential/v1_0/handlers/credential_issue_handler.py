@@ -7,8 +7,7 @@ from .....messaging.models.base import BaseModelError
 from .....messaging.request_context import RequestContext
 from .....messaging.responder import BaseResponder
 from .....storage.error import StorageError
-from .....utils.tracing import trace_event, get_timer
-
+from .....utils.tracing import get_timer, trace_event
 from .. import problem_report_for_record
 from ..manager import CredentialManager, CredentialManagerError
 from ..messages.credential_issue import CredentialIssue
@@ -68,9 +67,7 @@ class CredentialIssueHandler(BaseHandler):
         # Automatically move to next state if flag is set
         if cred_ex_record and context.settings.get("debug.auto_store_credential"):
             try:
-                cred_ex_record = await credential_manager.store_credential(
-                    cred_ex_record
-                )
+                cred_ex_record = await credential_manager.store_credential(cred_ex_record)
             except (
                 BaseModelError,
                 CredentialManagerError,

@@ -1,11 +1,6 @@
 """Generic problem report handler."""
 
-from ....messaging.base_handler import (
-    BaseHandler,
-    BaseResponder,
-    RequestContext,
-)
-
+from ....messaging.base_handler import BaseHandler, BaseResponder, RequestContext
 from .message import ProblemReport
 
 
@@ -29,6 +24,4 @@ class ProblemReportHandler(BaseHandler):
             context.message,
         )
 
-        await context.profile.notify(
-            "acapy::problem_report", context.message.serialize()
-        )
+        await context.profile.notify("acapy::problem_report", context.message.serialize())

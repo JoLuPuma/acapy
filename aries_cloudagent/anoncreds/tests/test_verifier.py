@@ -22,9 +22,7 @@ from aries_cloudagent.anoncreds.models.anoncreds_schema import (
     GetSchemaResult,
 )
 from aries_cloudagent.askar.profile_anon import AskarAnoncredsProfile
-from aries_cloudagent.core.in_memory.profile import (
-    InMemoryProfile,
-)
+from aries_cloudagent.core.in_memory.profile import InMemoryProfile
 from aries_cloudagent.tests import mock
 
 from .. import verifier as test_module
@@ -41,7 +39,7 @@ from .mock_objects import (
 class TestAnonCredsVerifier(IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.profile = InMemoryProfile.test_profile(
-            settings={"wallet-type": "askar-anoncreds"},
+            settings={"wallet.type": "askar-anoncreds"},
             profile_class=AskarAnoncredsProfile,
         )
         self.verifier = test_module.AnonCredsVerifier(self.profile)
@@ -149,9 +147,9 @@ class TestAnonCredsVerifier(IsolatedAsyncioTestCase):
             )
 
         # with rev_reg_id
-        mock_pres["identifiers"][0][
-            "rev_reg_id"
-        ] = "TUku9MDGa7QALbAJX4oAww:3:TUku9MDGa7QALbAJX4oAww:3:CL:18:tag:CL_ACCUM:0"
+        mock_pres["identifiers"][0]["rev_reg_id"] = (
+            "TUku9MDGa7QALbAJX4oAww:3:TUku9MDGa7QALbAJX4oAww:3:CL:18:tag:CL_ACCUM:0"
+        )
 
         # Superfluous timestamp
         with self.assertRaises(ValueError):
@@ -272,9 +270,9 @@ class TestAnonCredsVerifier(IsolatedAsyncioTestCase):
             )
 
         # with rev_reg_id
-        mock_pres["identifiers"][0][
-            "rev_reg_id"
-        ] = "TUku9MDGa7QALbAJX4oAww:3:TUku9MDGa7QALbAJX4oAww:3:CL:18:tag:CL_ACCUM:0"
+        mock_pres["identifiers"][0]["rev_reg_id"] = (
+            "TUku9MDGa7QALbAJX4oAww:3:TUku9MDGa7QALbAJX4oAww:3:CL:18:tag:CL_ACCUM:0"
+        )
 
         # Superfluous timestamp
         with self.assertRaises(ValueError):
@@ -393,9 +391,9 @@ class TestAnonCredsVerifier(IsolatedAsyncioTestCase):
             )
 
         # with rev_reg_id
-        mock_pres["identifiers"][0][
-            "rev_reg_id"
-        ] = "TUku9MDGa7QALbAJX4oAww:3:TUku9MDGa7QALbAJX4oAww:3:CL:18:tag:CL_ACCUM:0"
+        mock_pres["identifiers"][0]["rev_reg_id"] = (
+            "TUku9MDGa7QALbAJX4oAww:3:TUku9MDGa7QALbAJX4oAww:3:CL:18:tag:CL_ACCUM:0"
+        )
 
         # Superfluous timestamp
         with self.assertRaises(ValueError):
@@ -475,9 +473,9 @@ class TestAnonCredsVerifier(IsolatedAsyncioTestCase):
         del mock_pres_req["requested_attributes"]["consent_attrs"]["name"]
         with self.assertRaises(ValueError):
             await self.verifier.pre_verify(mock_pres_req, mock_pres)
-        mock_pres_req["requested_attributes"]["consent_attrs"][
-            "name"
-        ] = "jti_unique_identifier"
+        mock_pres_req["requested_attributes"]["consent_attrs"]["name"] = (
+            "jti_unique_identifier"
+        )
         # attr not in proof
         mock_pres["requested_proof"]["self_attested_attrs"] = {}
         with self.assertRaises(ValueError):

@@ -3,11 +3,12 @@
 # pylint: disable=redefined-outer-name
 
 import os
-import pytest
 import time
 import uuid
 
-from . import logger, Agent, FABER, ALICE, MULTI
+import pytest
+
+from . import ALICE, FABER, MULTI, Agent, logger
 
 
 @pytest.fixture(scope="session")
@@ -40,7 +41,7 @@ def alice_faber_connection(faber, alice):
     logger.info("faber create invitation to alice")
     invite = faber.create_invitation(auto_accept="true")["invitation"]
     logger.info(f"invitation = {invite}")
-    logger.info(f"alice receive invitation")
+    logger.info("alice receive invitation")
     resp = alice.receive_invite(invite, auto_accept="true")
     result = resp["connection_id"]
     logger.info(f"alice/faber connection_id = {result}")
@@ -53,7 +54,7 @@ def faber_alice_connection(faber, alice):
     logger.info("alice create invitation to faber")
     invite = alice.create_invitation(auto_accept="true")["invitation"]
     logger.info(f"invitation = {invite}")
-    logger.info(f"faber receive invitation")
+    logger.info("faber receive invitation")
     resp = faber.receive_invite(invite, auto_accept="true")
     result = resp["connection_id"]
     logger.info(f"faber/alice connection_id = {result}")
@@ -66,7 +67,7 @@ def alice_multi_one_connection(multi_one, alice):
     logger.info("multi_one create invitation to alice")
     invite = multi_one.create_invitation(auto_accept="true")["invitation"]
     logger.info(f"invitation = {invite}")
-    logger.info(f"alice receive invitation")
+    logger.info("alice receive invitation")
     resp = alice.receive_invite(invite, auto_accept="true")
     result = resp["connection_id"]
     logger.info(f"alice/multi_one connection_id = {result}")
@@ -79,7 +80,7 @@ def multi_one_alice_connection(multi_one, alice):
     logger.info("alice create invitation to multi_one")
     invite = alice.create_invitation(auto_accept="true")["invitation"]
     logger.info(f"invitation = {invite}")
-    logger.info(f"faber receive invitation")
+    logger.info("faber receive invitation")
     resp = multi_one.receive_invite(invite, auto_accept="true")
     result = resp["connection_id"]
     logger.info(f"multi_one/alice connection_id = {result}")

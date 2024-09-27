@@ -1,8 +1,7 @@
 """Schema for configuring multiple ledgers."""
 
-import uuid
-
 from marshmallow import EXCLUDE, fields, pre_load
+from uuid_utils import uuid4
 
 from ...messaging.models.base import BaseModel, BaseModelSchema
 from ...messaging.models.openapi import OpenAPISchema
@@ -43,9 +42,7 @@ class LedgerConfigInstanceSchema(BaseModelSchema):
         unknown = EXCLUDE
 
     id = fields.Str(required=False, metadata={"description": "ledger_id"})
-    is_production = fields.Bool(
-        required=False, metadata={"description": "is_production"}
-    )
+    is_production = fields.Bool(required=False, metadata={"description": "is_production"})
     genesis_transactions = fields.Str(
         required=False, metadata={"description": "genesis_transactions"}
     )
@@ -56,7 +53,7 @@ class LedgerConfigInstanceSchema(BaseModelSchema):
     def validate_id(self, data, **kwargs):
         """Check if id is present, if not then set to UUID4."""
         if "id" not in data:
-            data["id"] = str(uuid.uuid4())
+            data["id"] = str(uuid4())
         return data
 
 

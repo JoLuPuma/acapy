@@ -1,7 +1,6 @@
 from binascii import unhexlify
 
 from .....wallet.util import b64_to_bytes
-
 from ..derive_1pu import derive_receiver_1pu, derive_sender_1pu
 
 
@@ -33,9 +32,7 @@ def test_1pu_hex_example():
     )
     print("Bob 1PU key: ", bobKey.hex())
 
-    assert (
-        aliceKey == bobKey
-    ), "Both parties should generate the same key using ECDH-1PU"
+    assert aliceKey == bobKey, "Both parties should generate the same key using ECDH-1PU"
 
 
 # Example key exchange in https://tools.ietf.org/id/draft-madden-jose-ecdh-1pu-03.html#rfc.appendix.A
@@ -48,9 +45,7 @@ def test_1pu_appendix_example():
     y = "y77t-RvAHRKTsSGdIYUfweuOvwrvDD-Q3Hv5J0fSKbE"
 
     aliceSecretKey = b64_to_bytes(d, urlsafe=True).hex()
-    alicePublicKey = (
-        b64_to_bytes(x, urlsafe=True) + b64_to_bytes(y, urlsafe=True)
-    ).hex()
+    alicePublicKey = (b64_to_bytes(x, urlsafe=True) + b64_to_bytes(y, urlsafe=True)).hex()
 
     # _______________________________________________________________________________
 
@@ -95,9 +90,7 @@ def test_1pu_appendix_example():
         "6caf13723d14850ad4b42cd6dde935bffd2fff00a9ba70de05c203a5e1722ca7"
     )
 
-    assert (
-        aliceKey == bobKey
-    ), "Both parties should generate the same key using ECDH-1PU"
+    assert aliceKey == bobKey, "Both parties should generate the same key using ECDH-1PU"
     assert (
         aliceKey == expected_result
     ), "Generated key should match the appendix A example"

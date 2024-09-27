@@ -8,8 +8,15 @@ developer @shaangill025.
 ## Running unit tests in ACA-Py
 
 - `./scripts/run_tests`
-- `./scripts/run_tests aries_clouadagent/protocols/out_of_band/v1_0/tests`
-- `./scripts/run_tests_indy` includes Indy specific tests
+- `./scripts/run_tests aries_cloudagent/protocols/out_of_band/v1_0/tests`
+
+Note: The `bbs` library is not installed with ACA-Py by default, therefore unit tests involving BBS Signatures are disabled. To run BBS tests add the `--all-extras` flag:
+
+```bash
+    ./scripts/run_tests --all-extras
+```
+
+Note: The `bbs` library may not install on ARM (i.e. aarch64 or  arm64) architecture therefore YMMV with testing BBS Signatures on ARM based devices.
 
 ## Pytest
 
@@ -251,7 +258,7 @@ async def receive_invitation(
   function.`assert_called_once()`
   
 - pytest.mark setup in `setup.cfg`
-  can be attributed at function or class level. Example, `@pytest.mark.indy`
+  can be attributed at function or class level. Example, `@pytest.mark.askar`
   
 - Code coverage
   ![Code coverage screenshot](https://i.imgur.com/VhNYcje.png)

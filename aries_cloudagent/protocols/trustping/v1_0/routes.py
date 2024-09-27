@@ -2,9 +2,9 @@
 
 from aiohttp import web
 from aiohttp_apispec import docs, match_info_schema, request_schema, response_schema
-
 from marshmallow import fields
 
+from ....admin.decorators.auth import tenant_authentication
 from ....admin.request_context import AdminRequestContext
 from ....connections.models.conn_record import ConnRecord
 from ....messaging.models.openapi import OpenAPISchema
@@ -45,6 +45,7 @@ class PingConnIdMatchInfoSchema(OpenAPISchema):
 @match_info_schema(PingConnIdMatchInfoSchema())
 @request_schema(PingRequestSchema())
 @response_schema(PingRequestResponseSchema(), 200, description="")
+@tenant_authentication
 async def connections_send_ping(request: web.BaseRequest):
     """Request handler for sending a trust ping to a connection.
 
@@ -76,9 +77,7 @@ async def connections_send_ping(request: web.BaseRequest):
 async def register(app: web.Application):
     """Register routes."""
 
-    app.add_routes(
-        [web.post("/connections/{conn_id}/send-ping", connections_send_ping)]
-    )
+    app.add_routes([web.post("/connections/{conn_id}/send-ping", connections_send_ping)])
 
 
 def post_process_routes(app: web.Application):

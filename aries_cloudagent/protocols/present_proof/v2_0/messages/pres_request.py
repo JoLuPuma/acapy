@@ -12,9 +12,7 @@ from .....messaging.decorators.attach_decorator import (
 from ..message_types import PRES_20_REQUEST, PROTOCOL_PACKAGE
 from .pres_format import V20PresFormat, V20PresFormatSchema
 
-HANDLER_CLASS = (
-    f"{PROTOCOL_PACKAGE}.handlers.pres_request_handler.V20PresRequestHandler"
-)
+HANDLER_CLASS = f"{PROTOCOL_PACKAGE}.handlers.pres_request_handler.V20PresRequestHandler"
 
 
 class V20PresRequest(AgentMessage):
@@ -40,8 +38,15 @@ class V20PresRequest(AgentMessage):
         """Initialize presentation request object.
 
         Args:
-            request_presentations_attach: proof request attachments
-            comment: optional comment
+            _id (str, optional): The ID of the presentation request.
+            comment (str, optional): An optional comment.
+            will_confirm (bool, optional): A flag indicating whether the presentation
+                request will be confirmed.
+            formats (Sequence[V20PresFormat], optional): A sequence of presentation
+                formats.
+            request_presentations_attach (Sequence[AttachDecorator], optional): A
+                sequence of proof request attachments.
+            kwargs: Additional keyword arguments.
 
         """
         super().__init__(_id=_id, **kwargs)
@@ -100,7 +105,7 @@ class V20PresRequestSchema(AgentMessageSchema):
         V20PresFormatSchema,
         many=True,
         required=True,
-        metadata={"descrption": "Acceptable attachment formats"},
+        metadata={"description": "Acceptable attachment formats"},
     )
     request_presentations_attach = fields.Nested(
         AttachDecoratorSchema,

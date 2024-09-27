@@ -1,11 +1,10 @@
 from unittest import IsolatedAsyncioTestCase
 
-from .....core.event_bus import EventBus, MockEventBus
 from .....admin.request_context import AdminRequestContext
-
+from .....core.event_bus import EventBus, MockEventBus
 from .. import util as test_module
-from ..models.menu_form_param import MenuFormParam
 from ..models.menu_form import MenuForm
+from ..models.menu_form_param import MenuFormParam
 from ..models.menu_option import MenuOption
 
 
@@ -72,6 +71,4 @@ class TestActionMenuUtil(IsolatedAsyncioTestCase):
         mock_event_bus.events.clear()
 
         # retrieve no menu
-        assert (
-            await test_module.retrieve_connection_menu(connection_id, context) is None
-        )
+        assert await test_module.retrieve_connection_menu(connection_id, context) is None

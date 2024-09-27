@@ -19,6 +19,9 @@ from ..transport.outbound.status import OutboundSendStatus
 from .base_message import BaseMessage
 
 SKIP_ACTIVE_CONN_CHECK_MSG_TYPES = [
+    "didexchange/1.1/request",
+    "didexchange/1.1/response",
+    "didexchange/1.1/problem_report",
     "didexchange/1.0/request",
     "didexchange/1.0/response",
     "didexchange/1.0/problem_report",
@@ -118,6 +121,7 @@ class BaseResponder(ABC):
             message: the `BaseMessage`, or pre-packed str or bytes to reply with
             connection_id: optionally override the target connection ID
             target: optionally specify a `ConnectionTarget` to send to
+            target_list: optionally specify a list of `ConnectionTarget` to send to
 
         Raises:
             ResponderError: If there is no active connection
@@ -150,9 +154,7 @@ class BaseResponder(ABC):
         async def _wait_for_state() -> Tuple[bool, Optional[str]]:
             while True:
                 async with profile.session() as session:
-                    conn_record = await ConnRecord.retrieve_by_id(
-                        session, connection_id
-                    )
+                    conn_record = await ConnRecord.retrieve_by_id(session, connection_id)
                     if conn_record.is_ready:
                         # if ConnRecord.State.get(conn_record.state) in (
                         #     ConnRecord.State.COMPLETED,
@@ -188,6 +190,7 @@ class BaseResponder(ABC):
 
         Args:
             message: The `OutboundMessage` to be sent
+            kwargs: Additional keyword arguments
         """
 
     @abstractmethod

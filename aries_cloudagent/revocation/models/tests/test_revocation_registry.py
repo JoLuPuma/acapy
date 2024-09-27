@@ -1,19 +1,14 @@
-from unittest import mock
-from unittest import IsolatedAsyncioTestCase
 from copy import deepcopy
 from pathlib import Path
 from shutil import rmtree
+from unittest import IsolatedAsyncioTestCase, mock
 
 import base58
 
 from ....indy.util import indy_client_dir
-
 from ...error import RevocationError
-
-from ..revocation_registry import RevocationRegistry
-
 from .. import revocation_registry as test_module
-
+from ..revocation_registry import RevocationRegistry
 
 TEST_DID = "FkjWznKwA4N1JEp2iPiKPG"
 CRED_DEF_ID = f"{TEST_DID}:3:CL:12:tag1"
@@ -104,9 +99,7 @@ class TestRevocationRegistry(IsolatedAsyncioTestCase):
 
         more_magic = mock.MagicMock()
         with mock.patch.object(test_module, "Session", autospec=True) as mock_session:
-            mock_session.return_value.__enter__ = mock.MagicMock(
-                return_value=more_magic
-            )
+            mock_session.return_value.__enter__ = mock.MagicMock(return_value=more_magic)
             more_magic.get = mock.MagicMock(
                 side_effect=test_module.RequestException("Not this time")
             )
@@ -119,9 +112,7 @@ class TestRevocationRegistry(IsolatedAsyncioTestCase):
 
         more_magic = mock.MagicMock()
         with mock.patch.object(test_module, "Session", autospec=True) as mock_session:
-            mock_session.return_value.__enter__ = mock.MagicMock(
-                return_value=more_magic
-            )
+            mock_session.return_value.__enter__ = mock.MagicMock(return_value=more_magic)
             more_magic.get = mock.MagicMock(
                 return_value=mock.MagicMock(
                     iter_content=mock.MagicMock(side_effect=[(b"abcd1234",), (b"",)])
@@ -144,9 +135,7 @@ class TestRevocationRegistry(IsolatedAsyncioTestCase):
         ) as mock_b58enc, mock.patch.object(
             Path, "is_file", autospec=True
         ) as mock_is_file:
-            mock_session.return_value.__enter__ = mock.MagicMock(
-                return_value=more_magic
-            )
+            mock_session.return_value.__enter__ = mock.MagicMock(return_value=more_magic)
             more_magic.get = mock.MagicMock(
                 return_value=mock.MagicMock(
                     iter_content=mock.MagicMock(side_effect=[(b"abcd1234",), (b"",)])

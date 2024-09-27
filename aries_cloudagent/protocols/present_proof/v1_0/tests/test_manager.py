@@ -1,22 +1,20 @@
 import json
-
 from time import time
-
-from aries_cloudagent.tests import mock
 from unittest import IsolatedAsyncioTestCase
 
 from aries_cloudagent.protocols.issue_credential.v1_0.models.credential_exchange import (
     V10CredentialExchange,
 )
+from aries_cloudagent.tests import mock
 
 from .....core.in_memory import InMemoryProfile
 from .....indy.holder import IndyHolder, IndyHolderError
-from .....indy.models.xform import indy_proof_req_preview2indy_requested_creds
 from .....indy.models.pres_preview import (
     IndyPresAttrSpec,
-    IndyPresPreview,
     IndyPresPredSpec,
+    IndyPresPreview,
 )
+from .....indy.models.xform import indy_proof_req_preview2indy_requested_creds
 from .....indy.verifier import IndyVerifier
 from .....ledger.base import BaseLedger
 from .....ledger.multiple_ledger.ledger_requests_executor import (
@@ -24,11 +22,8 @@ from .....ledger.multiple_ledger.ledger_requests_executor import (
 )
 from .....messaging.decorators.attach_decorator import AttachDecorator
 from .....messaging.responder import BaseResponder, MockResponder
-
 from ....didcomm_prefix import DIDCommPrefix
-
 from ...indy import pres_exch_handler as test_indy_util_module
-
 from .. import manager as test_module
 from ..manager import PresentationManager, PresentationManagerError
 from ..message_types import ATTACH_DECO_IDS, PRESENTATION, PRESENTATION_REQUEST
@@ -37,7 +32,6 @@ from ..messages.presentation_problem_report import PresentationProblemReport
 from ..messages.presentation_proposal import PresentationProposal
 from ..messages.presentation_request import PresentationRequest
 from ..models.presentation_exchange import V10PresentationExchange
-
 
 NOW = int(time())
 CONN_ID = "connection_id"
@@ -309,9 +303,7 @@ class TestPresentationManager(IsolatedAsyncioTestCase):
 
         Verifier = mock.MagicMock(IndyVerifier, autospec=True)
         self.verifier = Verifier()
-        self.verifier.verify_presentation = mock.CoroutineMock(
-            return_value=("true", [])
-        )
+        self.verifier.verify_presentation = mock.CoroutineMock(return_value=("true", []))
         injector.bind_instance(IndyVerifier, self.verifier)
 
         self.manager = PresentationManager(self.profile)
@@ -354,9 +346,7 @@ class TestPresentationManager(IsolatedAsyncioTestCase):
 
         with mock.patch.object(
             V10PresentationExchange, "save", autospec=True
-        ) as save_ex, mock.patch.object(
-            PresentationProposal, "serialize", autospec=True
-        ):
+        ) as save_ex, mock.patch.object(PresentationProposal, "serialize", autospec=True):
             exchange = await self.manager.create_exchange_for_proposal(
                 CONN_ID,
                 proposal,
@@ -375,9 +365,7 @@ class TestPresentationManager(IsolatedAsyncioTestCase):
         connection_record = mock.MagicMock(connection_id=CONN_ID)
         proposal = PresentationProposal()
 
-        with mock.patch.object(
-            V10PresentationExchange, "save", autospec=True
-        ) as save_ex:
+        with mock.patch.object(V10PresentationExchange, "save", autospec=True) as save_ex:
             exchange = await self.manager.receive_proposal(proposal, connection_record)
             save_ex.assert_called_once()
 
@@ -418,9 +406,7 @@ class TestPresentationManager(IsolatedAsyncioTestCase):
             ]
         )
 
-        with mock.patch.object(
-            V10PresentationExchange, "save", autospec=True
-        ) as save_ex:
+        with mock.patch.object(V10PresentationExchange, "save", autospec=True) as save_ex:
             exchange = await self.manager.create_exchange_for_request(
                 CONN_ID,
                 pres_req,
@@ -437,9 +423,7 @@ class TestPresentationManager(IsolatedAsyncioTestCase):
     async def test_receive_request(self):
         exchange_in = V10PresentationExchange()
 
-        with mock.patch.object(
-            V10PresentationExchange, "save", autospec=True
-        ) as save_ex:
+        with mock.patch.object(V10PresentationExchange, "save", autospec=True) as save_ex:
             exchange_out = await self.manager.receive_request(exchange_in)
             save_ex.assert_called_once()
 
@@ -1228,9 +1212,7 @@ class TestPresentationManager(IsolatedAsyncioTestCase):
             presentation=INDY_PROOF,
         )
 
-        with mock.patch.object(
-            V10PresentationExchange, "save", autospec=True
-        ) as save_ex:
+        with mock.patch.object(V10PresentationExchange, "save", autospec=True) as save_ex:
             exchange_out = await self.manager.verify_presentation(exchange_in)
             save_ex.assert_called_once()
 

@@ -1,7 +1,8 @@
 import asyncio
 import json
-import uuid
 from unittest import IsolatedAsyncioTestCase
+
+from uuid_utils import uuid4
 
 from .....admin.request_context import AdminRequestContext
 from .....anoncreds.default.legacy_indy.registry import LegacyIndyRegistry
@@ -11,7 +12,6 @@ from .....cache.base import BaseCache
 from .....cache.in_memory import InMemoryCache
 from .....connections.models.conn_record import ConnRecord
 from .....ledger.base import BaseLedger
-from .....storage.error import StorageNotFoundError
 from .....tests import mock
 from .....wallet.base import BaseWallet
 from .....wallet.did_method import SOV, DIDMethods
@@ -156,9 +156,7 @@ class TestTransactionManager(IsolatedAsyncioTestCase):
                 transaction_record.messages_attach[0]["data"]["json"]
                 == self.test_messages_attach
             )
-            assert (
-                transaction_record.state == TransactionRecord.STATE_TRANSACTION_CREATED
-            )
+            assert transaction_record.state == TransactionRecord.STATE_TRANSACTION_CREATED
 
     async def test_txn_rec_retrieve_by_connection_and_thread_caching(self):
         async with self.profile.session() as sesn:
@@ -267,7 +265,7 @@ class TestTransactionManager(IsolatedAsyncioTestCase):
             transaction_request.messages_attach == transaction_record.messages_attach[0]
         )
 
-    async def test_recieve_request(self):
+    async def test_receive_request(self):
         mock_request = mock.MagicMock()
         mock_request.transaction_id = self.test_author_transaction_id
         mock_request.signature_request = {
@@ -278,7 +276,7 @@ class TestTransactionManager(IsolatedAsyncioTestCase):
             "author_goal_code": TransactionRecord.WRITE_TRANSACTION,
         }
         mock_request.messages_attach = {
-            "@id": str(uuid.uuid4()),
+            "@id": str(uuid4()),
             "mime-type": "application/json",
             "data": {"json": self.test_messages_attach},
         }
@@ -603,8 +601,7 @@ class TestTransactionManager(IsolatedAsyncioTestCase):
         assert transaction_record.state == TransactionRecord.STATE_TRANSACTION_REFUSED
 
         assert (
-            refused_transaction_response.transaction_id
-            == self.test_author_transaction_id
+            refused_transaction_response.transaction_id == self.test_author_transaction_id
         )
         assert refused_transaction_response.thread_id == transaction_record._id
         assert refused_transaction_response.signature_response == {
@@ -640,9 +637,7 @@ class TestTransactionManager(IsolatedAsyncioTestCase):
         mock_response.endorser_did = self.test_refuser_did
 
         with mock.patch.object(TransactionRecord, "save", autospec=True) as save_record:
-            transaction_record = await self.manager.receive_refuse_response(
-                mock_response
-            )
+            transaction_record = await self.manager.receive_refuse_response(mock_response)
             save_record.assert_called_once()
 
         assert transaction_record._type == TransactionRecord.SIGNATURE_RESPONSE
@@ -688,9 +683,7 @@ class TestTransactionManager(IsolatedAsyncioTestCase):
 
         assert transaction_record.state == TransactionRecord.STATE_TRANSACTION_CANCELLED
 
-        assert (
-            cancelled_transaction_response.thread_id == self.test_author_transaction_id
-        )
+        assert cancelled_transaction_response.thread_id == self.test_author_transaction_id
         assert (
             cancelled_transaction_response.state
             == TransactionRecord.STATE_TRANSACTION_CANCELLED
@@ -761,7 +754,7 @@ class TestTransactionManager(IsolatedAsyncioTestCase):
         assert resend_transaction_response.thread_id == self.test_author_transaction_id
         assert (
             resend_transaction_response.state
-            == TransactionRecord.STATE_TRANSACTION_RESENT_RECEIEVED
+            == TransactionRecord.STATE_TRANSACTION_RESENT_RECEIVED
         )
 
     async def test_receive_transaction_resend(self):
@@ -779,7 +772,7 @@ class TestTransactionManager(IsolatedAsyncioTestCase):
         )
 
         mock_response = mock.MagicMock()
-        mock_response.state = TransactionRecord.STATE_TRANSACTION_RESENT_RECEIEVED
+        mock_response.state = TransactionRecord.STATE_TRANSACTION_RESENT_RECEIVED
         mock_response.thread_id = author_transaction_record._id
 
         with mock.patch.object(TransactionRecord, "save", autospec=True) as save_record:
@@ -790,7 +783,7 @@ class TestTransactionManager(IsolatedAsyncioTestCase):
 
         assert (
             endorser_transaction_record.state
-            == TransactionRecord.STATE_TRANSACTION_RESENT_RECEIEVED
+            == TransactionRecord.STATE_TRANSACTION_RESENT_RECEIVED
         )
 
     async def test_set_transaction_my_job(self):
@@ -809,35 +802,17 @@ class TestTransactionManager(IsolatedAsyncioTestCase):
 
     async def test_set_transaction_their_job(self):
         mock_job = mock.MagicMock()
-        mock_receipt = mock.MagicMock()
+        mock_conn = mock.MagicMock()
+        mock_conn.metadata_get = mock.CoroutineMock(
+            side_effect=[
+                None,
+                {"meta": "data"},
+            ]
+        )
+        mock_conn.metadata_set = mock.CoroutineMock()
 
-        with mock.patch.object(
-            ConnRecord, "retrieve_by_did", mock.CoroutineMock()
-        ) as mock_retrieve:
-            mock_retrieve.return_value = mock.MagicMock(
-                metadata_get=mock.CoroutineMock(
-                    side_effect=[
-                        None,
-                        {"meta": "data"},
-                    ]
-                ),
-                metadata_set=mock.CoroutineMock(),
-            )
-
-            for i in range(2):
-                await self.manager.set_transaction_their_job(mock_job, mock_receipt)
-
-    async def test_set_transaction_their_job_conn_not_found(self):
-        mock_job = mock.MagicMock()
-        mock_receipt = mock.MagicMock()
-
-        with mock.patch.object(
-            ConnRecord, "retrieve_by_did", mock.CoroutineMock()
-        ) as mock_retrieve:
-            mock_retrieve.side_effect = StorageNotFoundError()
-
-            with self.assertRaises(TransactionManagerError):
-                await self.manager.set_transaction_their_job(mock_job, mock_receipt)
+        for i in range(2):
+            await self.manager.set_transaction_their_job(mock_job, mock_conn)
 
     @mock.patch.object(AnonCredsIssuer, "finish_schema")
     @mock.patch.object(AnonCredsIssuer, "finish_cred_def")
@@ -940,7 +915,7 @@ class TestTransactionManager(IsolatedAsyncioTestCase):
                 "txn": {
                     "type": "114",
                     "metadata": {"from": TEST_DID},
-                    "data": {"revocRegDefId": REV_REG_ID},
+                    "data": {"revocRegDefId": REV_REG_ID, "value": {"revoked": [1]}},
                 },
                 "txnMetadata": {"txnId": REV_REG_ID},
             },

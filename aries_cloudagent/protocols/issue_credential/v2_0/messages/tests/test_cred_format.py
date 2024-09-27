@@ -1,10 +1,8 @@
 from unittest import TestCase
 
 from ......messaging.decorators.attach_decorator import AttachDecorator
-
 from ..cred_format import V20CredFormat
 from ..inner.cred_preview import V20CredAttrSpec, V20CredPreview
-
 
 TEST_PREVIEW = V20CredPreview(
     attributes=(
@@ -44,9 +42,7 @@ class TestV20FormatFormat(TestCase):
                 formats=[
                     V20CredFormat(attach_id="indy", format_=V20CredFormat.Format.INDY)
                 ],
-                attachments=[
-                    AttachDecorator.data_base64(TEST_INDY_FILTER, ident="indy")
-                ],
+                attachments=[AttachDecorator.data_base64(TEST_INDY_FILTER, ident="indy")],
             )
             == TEST_INDY_FILTER
         )
@@ -56,9 +52,7 @@ class TestV20FormatFormat(TestCase):
                 formats=[
                     V20CredFormat(attach_id="indy", format_=V20CredFormat.Format.INDY)
                 ],
-                attachments=[
-                    AttachDecorator.data_base64(TEST_INDY_FILTER, ident="xxx")
-                ],
+                attachments=[AttachDecorator.data_base64(TEST_INDY_FILTER, ident="xxx")],
             )
             is None
         )
@@ -68,9 +62,7 @@ class TestV20FormatFormat(TestCase):
                 formats=[
                     V20CredFormat(attach_id="indy", format_=V20CredFormat.Format.INDY)
                 ],
-                attachments=[
-                    AttachDecorator.data_base64(TEST_INDY_FILTER, ident="indy")
-                ],
+                attachments=[AttachDecorator.data_base64(TEST_INDY_FILTER, ident="indy")],
             )
             is None
         )

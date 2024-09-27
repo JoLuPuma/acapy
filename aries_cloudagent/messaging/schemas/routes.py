@@ -15,6 +15,7 @@ from aiohttp_apispec import (
 from marshmallow import fields
 from marshmallow.validate import Regexp
 
+from ...admin.decorators.auth import tenant_authentication
 from ...admin.request_context import AdminRequestContext
 from ...connections.models.conn_record import ConnRecord
 from ...core.event_bus import Event, EventBus
@@ -41,6 +42,7 @@ from ...protocols.endorse_transaction.v1_0.util import (
 )
 from ...storage.base import BaseStorage, StorageRecord
 from ...storage.error import StorageError, StorageNotFoundError
+from ...utils.profiles import is_anoncreds_profile_raise_web_exception
 from ..models.base import BaseModelError
 from ..models.openapi import OpenAPISchema
 from ..valid import (
@@ -89,9 +91,7 @@ class SchemaSendResultSchema(OpenAPISchema):
             "example": INDY_SCHEMA_ID_EXAMPLE,
         },
     )
-    schema = fields.Nested(
-        SchemaSchema(), metadata={"description": "Schema definition"}
-    )
+    schema = fields.Nested(SchemaSchema(), metadata={"description": "Schema definition"})
 
 
 class TxnOrSchemaSendResultSchema(OpenAPISchema):
@@ -165,6 +165,7 @@ class SchemaConnIdMatchInfoSchema(OpenAPISchema):
 @querystring_schema(CreateSchemaTxnForEndorserOptionSchema())
 @querystring_schema(SchemaConnIdMatchInfoSchema())
 @response_schema(TxnOrSchemaSendResultSchema(), 200, description="")
+@tenant_authentication
 async def schemas_send_schema(request: web.BaseRequest):
     """Request handler for creating a schema.
 
@@ -177,6 +178,9 @@ async def schemas_send_schema(request: web.BaseRequest):
     """
     context: AdminRequestContext = request["context"]
     profile = context.profile
+
+    is_anoncreds_profile_raise_web_exception(profile)
+
     outbound_handler = request["outbound_message_router"]
 
     create_transaction_for_endorser = json.loads(
@@ -227,9 +231,7 @@ async def schemas_send_schema(request: web.BaseRequest):
             raise web.HTTPBadRequest(reason=err.roll_up) from err
 
         async with profile.session() as session:
-            endorser_info = await connection_record.metadata_get(
-                session, "endorser_info"
-            )
+            endorser_info = await connection_record.metadata_get(session, "endorser_info")
         if not endorser_info:
             raise web.HTTPForbidden(
                 reason=(
@@ -295,9 +297,7 @@ async def schemas_send_schema(request: web.BaseRequest):
     # If the transaction is for the endorser, but the schema has already been created,
     # then we send back the schema since the transaction will fail to be created.
     elif "signed_txn" not in schema_def:
-        return web.json_response(
-            {"sent": {"schema_id": schema_id, "schema": schema_def}}
-        )
+        return web.json_response({"sent": {"schema_id": schema_id, "schema": schema_def}})
     else:
         transaction_mgr = TransactionManager(context.profile)
         try:
@@ -314,7 +314,7 @@ async def schemas_send_schema(request: web.BaseRequest):
             try:
                 transaction, transaction_request = await transaction_mgr.create_request(
                     transaction=transaction,
-                    # TODO see if we need to parameterize these params
+                    # TODO see if we need to parametrize these params
                     # expires_time=expires_time,
                 )
             except (StorageError, TransactionManagerError) as err:
@@ -336,6 +336,7 @@ async def schemas_send_schema(request: web.BaseRequest):
 )
 @querystring_schema(SchemaQueryStringSchema())
 @response_schema(SchemasCreatedResultSchema(), 200, description="")
+@tenant_authentication
 async def schemas_created(request: web.BaseRequest):
     """Request handler for retrieving schemas that current agent created.
 
@@ -347,6 +348,8 @@ async def schemas_created(request: web.BaseRequest):
 
     """
     context: AdminRequestContext = request["context"]
+
+    is_anoncreds_profile_raise_web_exception(context.profile)
 
     session = await context.session()
     storage = session.inject(BaseStorage)
@@ -363,6 +366,7 @@ async def schemas_created(request: web.BaseRequest):
 @docs(tags=["schema"], summary="Gets a schema from the ledger")
 @match_info_schema(SchemaIdMatchInfoSchema())
 @response_schema(SchemaGetResultSchema(), 200, description="")
+@tenant_authentication
 async def schemas_get_schema(request: web.BaseRequest):
     """Request handler for sending a credential offer.
 
@@ -374,12 +378,16 @@ async def schemas_get_schema(request: web.BaseRequest):
 
     """
     context: AdminRequestContext = request["context"]
+    profile = context.profile
+
+    is_anoncreds_profile_raise_web_exception(profile)
+
     schema_id = request.match_info["schema_id"]
 
-    async with context.profile.session() as session:
+    async with profile.session() as session:
         multitenant_mgr = session.inject_or(BaseMultitenantManager)
         if multitenant_mgr:
-            ledger_exec_inst = IndyLedgerRequestsExecutor(context.profile)
+            ledger_exec_inst = IndyLedgerRequestsExecutor(profile)
         else:
             ledger_exec_inst = session.inject(IndyLedgerRequestsExecutor)
     ledger_id, ledger = await ledger_exec_inst.get_ledger_for_identifier(
@@ -409,6 +417,7 @@ async def schemas_get_schema(request: web.BaseRequest):
 @docs(tags=["schema"], summary="Writes a schema non-secret record to the wallet")
 @match_info_schema(SchemaIdMatchInfoSchema())
 @response_schema(SchemaGetResultSchema(), 200, description="")
+@tenant_authentication
 async def schemas_fix_schema_wallet_record(request: web.BaseRequest):
     """Request handler for fixing a schema's wallet non-secrets records.
 
@@ -420,8 +429,9 @@ async def schemas_fix_schema_wallet_record(request: web.BaseRequest):
 
     """
     context: AdminRequestContext = request["context"]
-
     profile = context.profile
+
+    is_anoncreds_profile_raise_web_exception(profile)
 
     schema_id = request.match_info["schema_id"]
 
@@ -429,7 +439,7 @@ async def schemas_fix_schema_wallet_record(request: web.BaseRequest):
         storage = session.inject(BaseStorage)
         multitenant_mgr = session.inject_or(BaseMultitenantManager)
         if multitenant_mgr:
-            ledger_exec_inst = IndyLedgerRequestsExecutor(context.profile)
+            ledger_exec_inst = IndyLedgerRequestsExecutor(profile)
         else:
             ledger_exec_inst = session.inject(IndyLedgerRequestsExecutor)
     ledger_id, ledger = await ledger_exec_inst.get_ledger_for_identifier(

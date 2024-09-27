@@ -1,9 +1,8 @@
 """Issuer revocation registry storage handling."""
 
-import json
 import importlib
+import json
 import logging
-import uuid
 from functools import total_ordering
 from os.path import join
 from pathlib import Path
@@ -12,12 +11,10 @@ from typing import Any, Mapping, Sequence, Tuple, Union
 from urllib.parse import urlparse
 
 from marshmallow import fields, validate
+from uuid_utils import uuid4
 
 from ...core.profile import Profile, ProfileSession
-from ...indy.credx.issuer import (
-    CATEGORY_CRED_DEF,
-    CATEGORY_REV_REG_DEF_PRIVATE,
-)
+from ...indy.credx.issuer import CATEGORY_CRED_DEF, CATEGORY_REV_REG_DEF_PRIVATE
 from ...indy.issuer import IndyIssuer, IndyIssuerError
 from ...indy.models.revocation import (
     IndyRevRegDef,
@@ -190,7 +187,7 @@ class IssuerRevRegRecord(BaseRecord):
     async def generate_registry(self, profile: Profile):
         """Create the revocation registry definition and tails file."""
         if not self.tag:
-            self.tag = self._id or str(uuid.uuid4())
+            self.tag = self._id or str(uuid4())
 
         if self.state != IssuerRevRegRecord.STATE_INIT:
             raise RevocationError(
@@ -399,7 +396,7 @@ class IssuerRevRegRecord(BaseRecord):
         )
         LOGGER.debug('>>> rev_reg_delta.get("value"): %s', rev_reg_delta.get("value"))
 
-        # if we had any revocation discrepencies, check the accumulator value
+        # if we had any revocation discrepancies, check the accumulator value
         if rec_count > 0:
             if (self.revoc_reg_entry.value and rev_reg_delta.get("value")) and not (
                 self.revoc_reg_entry.value.accum == rev_reg_delta["value"]["accum"]
@@ -408,10 +405,8 @@ class IssuerRevRegRecord(BaseRecord):
                 # await self.save(session)
                 accum_count += 1
             async with profile.session() as session:
-                issuer_rev_reg_record = (
-                    await IssuerRevRegRecord.retrieve_by_revoc_reg_id(
-                        session, self.revoc_reg_id
-                    )
+                issuer_rev_reg_record = await IssuerRevRegRecord.retrieve_by_revoc_reg_id(
+                    session, self.revoc_reg_id
                 )
                 cred_def_id = issuer_rev_reg_record.cred_def_id
                 _cred_def = await session.handle.fetch(CATEGORY_CRED_DEF, cred_def_id)
@@ -420,10 +415,8 @@ class IssuerRevRegRecord(BaseRecord):
                 )
             credx_module = importlib.import_module("indy_credx")
             cred_defn = credx_module.CredentialDefinition.load(_cred_def.value_json)
-            rev_reg_defn_private = (
-                credx_module.RevocationRegistryDefinitionPrivate.load(
-                    _rev_reg_def_private.value_json
-                )
+            rev_reg_defn_private = credx_module.RevocationRegistryDefinitionPrivate.load(
+                _rev_reg_def_private.value_json
             )
             calculated_txn = await generate_ledger_rrrecovery_txn(
                 genesis_transactions,
@@ -504,9 +497,7 @@ class IssuerRevRegRecord(BaseRecord):
         """
         if self.pending_pub:
             if cred_rev_ids:
-                self.pending_pub = [
-                    r for r in self.pending_pub if r not in cred_rev_ids
-                ]
+                self.pending_pub = [r for r in self.pending_pub if r not in cred_rev_ids]
             else:
                 self.pending_pub.clear()
             await self.save(session, reason="Cleared pending revocations")
@@ -527,7 +518,12 @@ class IssuerRevRegRecord(BaseRecord):
 
     @classmethod
     async def query_by_cred_def_id(
-        cls, session: ProfileSession, cred_def_id: str, state: str = None
+        cls,
+        session: ProfileSession,
+        cred_def_id: str,
+        state: str = None,
+        negative_state: str = None,
+        limit=None,
     ) -> Sequence["IssuerRevRegRecord"]:
         """Retrieve issuer revocation registry records by credential definition ID.
 
@@ -535,6 +531,8 @@ class IssuerRevRegRecord(BaseRecord):
             session: The profile session to use
             cred_def_id: The credential definition ID to filter by
             state: A state value to filter by
+            negative_state: A state value to exclude
+            limit: The maximum number of records to return
         """
         tag_filter = dict(
             filter(
@@ -542,7 +540,13 @@ class IssuerRevRegRecord(BaseRecord):
                 (("cred_def_id", cred_def_id), ("state", state)),
             )
         )
-        return await cls.query(session, tag_filter)
+        return await cls.query(
+            session,
+            tag_filter,
+            post_filter_positive={"state": state} if state else None,
+            post_filter_negative={"state": negative_state} if negative_state else None,
+            limit=limit,
+        )
 
     @classmethod
     async def query_by_pending(

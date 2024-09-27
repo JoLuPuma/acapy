@@ -71,9 +71,7 @@ class V20PresManager:
         )
 
         async with self._profile.session() as session:
-            await pres_ex_record.save(
-                session, reason="create v2.0 presentation proposal"
-            )
+            await pres_ex_record.save(session, reason="create v2.0 presentation proposal")
 
         return pres_ex_record
 
@@ -98,9 +96,7 @@ class V20PresManager:
         )
 
         async with self._profile.session() as session:
-            await pres_ex_record.save(
-                session, reason="receive v2.0 presentation request"
-            )
+            await pres_ex_record.save(session, reason="receive v2.0 presentation request")
 
         return pres_ex_record
 
@@ -115,11 +111,11 @@ class V20PresManager:
         Args:
             pres_ex_record: Presentation exchange record for which
                 to create presentation request
+            request_data: Formatted requested attributes and predicates
             comment: Optional human-readable comment pertaining to request creation
 
         Returns:
             A tuple (updated presentation exchange record, presentation request message)
-
         """
         proof_proposal = pres_ex_record.pres_proposal
         input_formats = proof_proposal.formats
@@ -211,9 +207,7 @@ class V20PresManager:
         """
         pres_ex_record.state = V20PresExRecord.STATE_REQUEST_RECEIVED
         async with self._profile.session() as session:
-            await pres_ex_record.save(
-                session, reason="receive v2.0 presentation request"
-            )
+            await pres_ex_record.save(session, reason="receive v2.0 presentation request")
 
         return pres_ex_record
 
@@ -227,12 +221,12 @@ class V20PresManager:
         """Create a presentation.
 
         Args:
-            pres_ex_record: record to update
-            requested_credentials: indy formatted requested_credentials
-            comment: optional human-readable comment
-            format_: presentation format
+            pres_ex_record (V20PresExRecord): The record to update.
+            request_data (Optional[dict]): Optional indy formatted
+                requested_credentials.
+            comment (str): Optional human-readable comment.
 
-        Example `requested_credentials` format, mapping proof request referents (uuid)
+        Example `request_data` format, mapping proof request referents (uuid)
         to wallet referents (cred id):
 
         ::
@@ -255,9 +249,14 @@ class V20PresManager:
             }
 
         Returns:
-            A tuple (updated presentation exchange record, presentation message)
+            Tuple[V20PresExRecord, V20Pres]: A tuple containing the updated
+                presentation exchange record and the presentation message.
 
+        Raises:
+            V20PresManagerError: If unable to create the presentation or no supported
+                formats are available.
         """
+
         proof_request = pres_ex_record.pres_request
         input_formats = proof_request.formats
         request_data = request_data or {}
@@ -294,9 +293,7 @@ class V20PresManager:
 
         # Assign thid (and optionally pthid) to message
         pres_message.assign_thread_from(pres_ex_record.pres_request)
-        pres_message.assign_trace_decorator(
-            self._profile.settings, pres_ex_record.trace
-        )
+        pres_message.assign_trace_decorator(self._profile.settings, pres_ex_record.trace)
 
         # save presentation exchange state
         pres_ex_record.state = V20PresExRecord.STATE_PRESENTATION_SENT
@@ -329,7 +326,9 @@ class V20PresManager:
         connection_id = (
             None
             if oob_record
-            else connection_record.connection_id if connection_record else None
+            else connection_record.connection_id
+            if connection_record
+            else None
         )
 
         async with self._profile.session() as session:
@@ -378,6 +377,7 @@ class V20PresManager:
         Args:
             pres_ex_record: presentation exchange record
                 with presentation request and presentation to verify
+            responder: base responder
 
         Returns:
             presentation exchange record, updated
@@ -414,6 +414,7 @@ class V20PresManager:
 
         Args:
             pres_ex_record: presentation exchange record with thread id
+            responder: base responder
 
         """
         responder = responder or self._profile.inject_or(BaseResponder)

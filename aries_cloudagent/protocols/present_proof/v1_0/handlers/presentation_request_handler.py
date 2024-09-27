@@ -9,13 +9,12 @@ from .....messaging.models.base import BaseModelError
 from .....messaging.request_context import RequestContext
 from .....messaging.responder import BaseResponder
 from .....storage.error import StorageError, StorageNotFoundError
-from .....utils.tracing import trace_event, get_timer
+from .....utils.tracing import get_timer, trace_event
 from .....wallet.error import WalletNotFoundError
-
 from .. import problem_report_for_record
 from ..manager import PresentationManager
-from ..messages.presentation_request import PresentationRequest
 from ..messages.presentation_problem_report import ProblemReportReason
+from ..messages.presentation_request import PresentationRequest
 from ..models.presentation_exchange import V10PresentationExchange
 
 
@@ -56,9 +55,7 @@ class PresentationRequestHandler(BaseHandler):
             )
 
         connection_id = (
-            context.connection_record.connection_id
-            if context.connection_record
-            else None
+            context.connection_record.connection_id if context.connection_record else None
         )
 
         presentation_manager = PresentationManager(profile)
@@ -69,15 +66,15 @@ class PresentationRequestHandler(BaseHandler):
         # or create it (verifier sent request first)
         try:
             async with profile.session() as session:
-                (presentation_exchange_record) = (
-                    await V10PresentationExchange.retrieve_by_tag_filter(
-                        session,
-                        {"thread_id": context.message._thread_id},
-                        {
-                            "role": V10PresentationExchange.ROLE_PROVER,
-                            "connection_id": connection_id,
-                        },
-                    )
+                (
+                    presentation_exchange_record
+                ) = await V10PresentationExchange.retrieve_by_tag_filter(
+                    session,
+                    {"thread_id": context.message._thread_id},
+                    {
+                        "role": V10PresentationExchange.ROLE_PROVER,
+                        "connection_id": connection_id,
+                    },
                 )  # holder initiated via proposal
                 presentation_exchange_record.presentation_request = indy_proof_request
                 presentation_exchange_record.presentation_request_dict = (

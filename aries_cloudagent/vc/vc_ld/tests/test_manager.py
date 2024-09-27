@@ -9,14 +9,14 @@ from ....core.profile import Profile
 from ....did.did_key import DIDKey
 from ....resolver.default.key import KeyDIDResolver
 from ....resolver.did_resolver import DIDResolver
-from ....wallet.base import BaseWallet
 from ....storage.vc_holder.base import VCHolder
+from ....wallet.base import BaseWallet
 from ....wallet.default_verification_key_strategy import (
     BaseVerificationKeyStrategy,
     DefaultVerificationKeyStrategy,
 )
 from ....wallet.did_info import DIDInfo
-from ....wallet.did_method import DIDMethod, DIDMethods, KEY, SOV
+from ....wallet.did_method import KEY, SOV, DIDMethod, DIDMethods
 from ....wallet.error import WalletNotFoundError
 from ....wallet.key_type import BLS12381G2, ED25519
 from ...ld_proofs.constants import (
@@ -112,9 +112,7 @@ async def test_assert_can_issue_with_id_and_proof_type(manager: VcLdpManager):
         await manager.assert_can_issue_with_id_and_proof_type(
             "not_did", Ed25519Signature2018.signature_type
         )
-        assert "Unable to issue credential with issuer id: not_did" in str(
-            context.value
-        )
+        assert "Unable to issue credential with issuer id: not_did" in str(context.value)
 
     with mock.patch.object(
         manager,

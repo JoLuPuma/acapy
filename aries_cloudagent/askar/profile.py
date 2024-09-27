@@ -3,9 +3,6 @@
 import asyncio
 import logging
 import time
-
-# import traceback
-
 from typing import Any, Mapping
 from weakref import ref
 
@@ -21,13 +18,13 @@ from ..indy.issuer import IndyIssuer
 from ..indy.verifier import IndyVerifier
 from ..ledger.base import BaseLedger
 from ..ledger.indy_vdr import IndyVdrLedger, IndyVdrLedgerPool
+from ..resolver.did_resolver import DIDResolver
 from ..storage.base import BaseStorage, BaseStorageSearch
 from ..storage.vc_holder.base import VCHolder
 from ..utils.multi_ledger import get_write_ledger_config_for_profile
 from ..wallet.base import BaseWallet
 from ..wallet.crypto import validate_seed
-
-from .store import AskarStoreConfig, AskarOpenStore
+from .store import AskarOpenStore, AskarStoreConfig
 
 LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +39,7 @@ class AskarProfile(Profile):
         opened: AskarOpenStore,
         context: InjectionContext = None,
         *,
-        profile_id: str = None
+        profile_id: str = None,
     ):
         """Create a new AskarProfile instance."""
         super().__init__(context=context, name=opened.name, created=opened.created)
@@ -94,11 +91,21 @@ class AskarProfile(Profile):
         """Initialize the profile-level instance providers."""
         injector = self._context.injector
 
+        if self.context.settings.get("experiment.didcomm_v2"):
+            from didcomm_messaging.resolver import DIDResolver as DMPResolver
+
+            injector.bind_provider(
+                DMPResolver,
+                ClassProvider(
+                    "aries_cloudagent.didcomm_v2.adapters.ResolverAdapter",
+                    ref(self),
+                    ClassProvider.Inject(DIDResolver),
+                ),
+            )
+
         injector.bind_provider(
             BaseStorageSearch,
-            ClassProvider(
-                "aries_cloudagent.storage.askar.AskarStorageSearch", ref(self)
-            ),
+            ClassProvider("aries_cloudagent.storage.askar.AskarStorageSearch", ref(self)),
         )
 
         injector.bind_provider(
@@ -114,7 +121,7 @@ class AskarProfile(Profile):
                 "aries_cloudagent.indy.credx.issuer.IndyCredxIssuer", ref(self)
             ),
         )
-        injector.bind_provider(
+        injector.soft_bind_provider(
             VCHolder,
             ClassProvider(
                 "aries_cloudagent.storage.vc_holder.askar.AskarVCHolder",
@@ -199,7 +206,7 @@ class AskarProfileSession(ProfileSession):
         is_txn: bool,
         *,
         context: InjectionContext = None,
-        settings: Mapping[str, Any] = None
+        settings: Mapping[str, Any] = None,
     ):
         """Create a new IndySdkProfileSession instance."""
         super().__init__(profile=profile, context=context, settings=settings)
@@ -207,6 +214,7 @@ class AskarProfileSession(ProfileSession):
             self._opener = self.profile.store.transaction(profile.profile_id)
         else:
             self._opener = self.profile.store.session(profile.profile_id)
+        self._profile = profile
         self._handle: Session = None
         self._acquire_start: float = None
         self._acquire_end: float = None
@@ -219,14 +227,17 @@ class AskarProfileSession(ProfileSession):
     @property
     def store(self) -> Store:
         """Accessor for the Store instance."""
-        return self._handle and self._handle.store
+        return self._profile and self._profile.store
 
     @property
     def is_transaction(self) -> bool:
         """Check if the session supports commit and rollback operations."""
-        if self._handle:
+        if self._handle:  # opened
             return self._handle.is_transaction
-        return self._opener.is_transaction
+        if self._opener:  # opening
+            return self._opener.is_transaction
+
+        raise ProfileError("Session not open")
 
     async def _setup(self):
         """Create the session or transaction connection, if needed."""
@@ -247,6 +258,35 @@ class AskarProfileSession(ProfileSession):
             BaseStorage,
             ClassProvider("aries_cloudagent.storage.askar.AskarStorage", ref(self)),
         )
+
+        if self.profile.settings.get("experiment.didcomm_v2"):
+            from didcomm_messaging import (
+                CryptoService,
+                DIDCommMessaging,
+                PackagingService,
+                RoutingService,
+                SecretsManager,
+            )
+            from didcomm_messaging.resolver import DIDResolver as DMPResolver
+
+            injector.bind_provider(
+                SecretsManager,
+                ClassProvider(
+                    "aries_cloudagent.didcomm_v2.adapters.SecretsAdapter", ref(self)
+                ),
+            )
+
+            injector.bind_provider(
+                DIDCommMessaging,
+                ClassProvider(
+                    DIDCommMessaging,
+                    ClassProvider.Inject(CryptoService),
+                    ClassProvider.Inject(SecretsManager),
+                    ClassProvider.Inject(DMPResolver),
+                    ClassProvider.Inject(PackagingService),
+                    ClassProvider.Inject(RoutingService),
+                ),
+            )
 
     async def _teardown(self, commit: bool = None):
         """Dispose of the session or transaction connection."""

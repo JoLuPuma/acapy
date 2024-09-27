@@ -27,10 +27,7 @@ from .messages.mediate_deny import MediationDeny
 from .messages.mediate_grant import MediationGrant
 from .messages.mediate_request import MediationRequest
 from .models.mediation_record import MediationRecord
-from .normalization import (
-    normalize_from_did_key,
-    normalize_to_did_key,
-)
+from .normalization import normalize_from_did_key, normalize_to_did_key
 
 LOGGER = logging.getLogger(__name__)
 
@@ -131,6 +128,7 @@ class MediationManager:
         """Create a new mediation record to track this request.
 
         Args:
+            connection_id (str): connection ID of mediator
             request (MediationRequest): request message
 
         Returns:
@@ -163,9 +161,7 @@ class MediationManager:
 
         """
         async with self._profile.session() as session:
-            mediation_record = await MediationRecord.retrieve_by_id(
-                session, mediation_id
-            )
+            mediation_record = await MediationRecord.retrieve_by_id(session, mediation_id)
             if mediation_record.role != MediationRecord.ROLE_SERVER:
                 raise MediationManagerError(
                     f"role({mediation_record.role}) is not {MediationRecord.ROLE_SERVER}"
@@ -197,9 +193,7 @@ class MediationManager:
 
         """
         async with self._profile.session() as session:
-            mediation_record = await MediationRecord.retrieve_by_id(
-                session, mediation_id
-            )
+            mediation_record = await MediationRecord.retrieve_by_id(session, mediation_id)
             if mediation_record.role != MediationRecord.ROLE_SERVER:
                 raise MediationManagerError(
                     f"role({mediation_record.role}) is not {MediationRecord.ROLE_SERVER}"
@@ -405,9 +399,7 @@ class MediationManager:
         async with self._profile.session() as session:
             await self._set_default_mediator_id(record.mediation_id, session)
 
-    async def _set_default_mediator_id(
-        self, mediation_id: str, session: ProfileSession
-    ):
+    async def _set_default_mediator_id(self, mediation_id: str, session: ProfileSession):
         """Set the default mediator ID (internal)."""
         default_record = await self._get_default_record(session)
         storage = session.inject(BaseStorage)
@@ -458,6 +450,7 @@ class MediationManager:
 
         Args:
             record (MediationRecord): record representing the granted mediation request
+            grant (MediationGrant): message from mediator granting request
 
         """
         record.state = MediationRecord.STATE_GRANTED
@@ -473,6 +466,7 @@ class MediationManager:
 
         Args:
             record (MediationRecord): record representing the denied mediation request
+            deny (MediationDeny): message from mediator denying request
 
         """
         record.state = MediationRecord.STATE_DENIED
@@ -606,9 +600,7 @@ class MediationManager:
                         to_remove.append(record)
 
             for record_for_saving in to_save:
-                await record_for_saving.save(
-                    session, reason="Route successfully added."
-                )
+                await record_for_saving.save(session, reason="Route successfully added.")
             for record_for_removal in to_remove:
                 await record_for_removal.delete_record(session)
 

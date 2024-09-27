@@ -1,26 +1,22 @@
 import asyncio
-import json
 import logging
 import os
 import sys
-from aiohttp import ClientError
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # noqa
 
 from runners.agent_container import (  # noqa:E402
+    AriesAgent,
     arg_parser,
     create_agent_with_args,
-    AriesAgent,
 )
 from runners.support.utils import (  # noqa:E402
     check_requires,
     log_msg,
     log_status,
-    log_timer,
     prompt,
     prompt_loop,
 )
-
 
 CRED_PREVIEW_TYPE = "https://didcomm.org/issue-credential/2.0/credential-preview"
 SELF_ATTESTED = os.getenv("SELF_ATTESTED")
@@ -64,9 +60,7 @@ class AcmeAgent(AriesAgent):
         pass
 
     async def handle_connections(self, message):
-        print(
-            self.ident, "handle_connections", message["state"], message["rfc23_state"]
-        )
+        print(self.ident, "handle_connections", message["state"], message["rfc23_state"])
         conn_id = message["connection_id"]
         if (not self.connection_id) and message["rfc23_state"] == "invitation-sent":
             print(self.ident, "set connection id", conn_id)

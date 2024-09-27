@@ -1,14 +1,13 @@
-import pytest
+from unittest import IsolatedAsyncioTestCase
 
 from aries_cloudagent.tests import mock
-from unittest import IsolatedAsyncioTestCase
 
 from ...config.base import ConfigError
 from ...config.error import ArgsParseError
-from .. import provision as test_module
 from ...protocols.coordinate_mediation.mediation_invite_store import (
     MediationInviteRecord,
 )
+from .. import provision as test_module
 
 
 class TestProvision(IsolatedAsyncioTestCase):
@@ -18,26 +17,6 @@ class TestProvision(IsolatedAsyncioTestCase):
 
         with self.assertRaises(SystemExit):
             test_module.execute(["bad"])
-
-    @pytest.mark.indy
-    def test_provision_wallet(self):
-        test_seed = "testseed000000000000000000000001"
-        test_module.execute(
-            [
-                "--wallet-type",
-                "indy",
-                "--wallet-name",
-                "test_wallet",
-                "--wallet-key",
-                "key",
-                "--seed",
-                test_seed,
-                "--no-ledger",
-                "--endpoint",
-                "test_endpoint",
-                "--recreate-wallet",
-            ]
-        )
 
     async def test_provision_ledger_configured(self):
         profile = mock.MagicMock(close=mock.CoroutineMock())
@@ -76,9 +55,7 @@ class TestProvision(IsolatedAsyncioTestCase):
         # given
         mediation_invite = "test-invite"
 
-        with mock.patch.object(
-            test_module.MediationInviteStore, "store"
-        ) as invite_store:
+        with mock.patch.object(test_module.MediationInviteStore, "store") as invite_store:
             # when
             await test_module.provision({"mediation.invite": mediation_invite})
 

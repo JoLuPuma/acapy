@@ -42,6 +42,7 @@ class V20PresProposal(AgentMessage):
             comment: optional human-readable comment
             formats: acceptable attachment formats
             proposals_attach: proposal attachments specifying criteria by format
+            kwargs: additional key-value arguments
         """
         super().__init__(_id, **kwargs)
         self.comment = comment
@@ -89,7 +90,7 @@ class V20PresProposalSchema(AgentMessageSchema):
         V20PresFormatSchema,
         many=True,
         required=True,
-        metadata={"descrption": "Acceptable attachment formats"},
+        metadata={"description": "Acceptable attachment formats"},
     )
     proposals_attach = fields.Nested(
         AttachDecoratorSchema,

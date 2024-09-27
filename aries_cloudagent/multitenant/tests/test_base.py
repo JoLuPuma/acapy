@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
-
 from unittest import IsolatedAsyncioTestCase
-from aries_cloudagent.tests import mock
+
 import jwt
 
-from .. import base as test_module
+from aries_cloudagent.tests import mock
+
 from ...config.base import InjectionError
 from ...core.in_memory import InMemoryProfile
 from ...messaging.responder import BaseResponder
@@ -21,6 +21,7 @@ from ...wallet.did_method import SOV
 from ...wallet.in_memory import InMemoryWallet
 from ...wallet.key_type import ED25519
 from ...wallet.models.wallet_record import WalletRecord
+from .. import base as test_module
 from ..base import BaseMultitenantManager, MultitenantManagerError
 from ..error import WalletKeyMissingError
 
@@ -32,7 +33,7 @@ class MockMultitenantManager(BaseMultitenantManager):
         wallet_record: WalletRecord,
         extra_settings: dict = ...,
         *,
-        provision=False
+        provision=False,
     ):
         """Do nothing."""
 
@@ -62,12 +63,12 @@ class TestBaseMultitenantManager(IsolatedAsyncioTestCase):
         with mock.patch.object(
             MediationManager, "get_default_mediator"
         ) as get_default_mediator:
-            mediaton_record = MediationRecord()
+            mediation_record = MediationRecord()
 
             # has default mediator
-            get_default_mediator.return_value = mediaton_record
+            get_default_mediator.return_value = mediation_record
             default_mediator = await self.manager.get_default_mediator()
-            assert default_mediator is mediaton_record
+            assert default_mediator is mediation_record
 
             # Doesn't have default mediator
             get_default_mediator.return_value = None
@@ -178,9 +179,7 @@ class TestBaseMultitenantManager(IsolatedAsyncioTestCase):
         assert isinstance(wallet, WalletRecord)
 
     async def test_create_wallet_removes_key_only_unmanaged_mode(self):
-        with mock.patch.object(
-            self.manager, "get_wallet_profile"
-        ) as get_wallet_profile:
+        with mock.patch.object(self.manager, "get_wallet_profile") as get_wallet_profile:
             get_wallet_profile.return_value = InMemoryProfile.test_profile()
 
             unmanaged_wallet_record = await self.manager.create_wallet(
@@ -431,9 +430,7 @@ class TestBaseMultitenantManager(IsolatedAsyncioTestCase):
             "very_secret_jwt",
             algorithm="HS256",
         )
-        ret_wallet_id, ret_wallet_key = self.manager.get_wallet_details_from_token(
-            token
-        )
+        ret_wallet_id, ret_wallet_key = self.manager.get_wallet_details_from_token(token)
         assert ret_wallet_id == wallet_record.wallet_id
         assert not ret_wallet_key
 
@@ -446,9 +443,7 @@ class TestBaseMultitenantManager(IsolatedAsyncioTestCase):
             "very_secret_jwt",
             algorithm="HS256",
         )
-        ret_wallet_id, ret_wallet_key = self.manager.get_wallet_details_from_token(
-            token
-        )
+        ret_wallet_id, ret_wallet_key = self.manager.get_wallet_details_from_token(token)
         assert ret_wallet_id == wallet_record.wallet_id
         assert ret_wallet_key == "wallet_key"
 
@@ -463,9 +458,7 @@ class TestBaseMultitenantManager(IsolatedAsyncioTestCase):
         session = await self.profile.session()
         await wallet_record.save(session)
 
-        with mock.patch.object(
-            self.manager, "get_wallet_profile"
-        ) as get_wallet_profile:
+        with mock.patch.object(self.manager, "get_wallet_profile") as get_wallet_profile:
             mock_profile = InMemoryProfile.test_profile()
             get_wallet_profile.return_value = mock_profile
 
@@ -512,9 +505,7 @@ class TestBaseMultitenantManager(IsolatedAsyncioTestCase):
             {"wallet_id": wallet_record.wallet_id}, "very_secret_jwt", algorithm="HS256"
         )
 
-        with mock.patch.object(
-            self.manager, "get_wallet_profile"
-        ) as get_wallet_profile:
+        with mock.patch.object(self.manager, "get_wallet_profile") as get_wallet_profile:
             mock_profile = InMemoryProfile.test_profile()
             get_wallet_profile.return_value = mock_profile
 
@@ -549,9 +540,7 @@ class TestBaseMultitenantManager(IsolatedAsyncioTestCase):
             algorithm="HS256",
         )
 
-        with mock.patch.object(
-            self.manager, "get_wallet_profile"
-        ) as get_wallet_profile:
+        with mock.patch.object(self.manager, "get_wallet_profile") as get_wallet_profile:
             mock_profile = InMemoryProfile.test_profile()
             get_wallet_profile.return_value = mock_profile
 
@@ -623,9 +612,7 @@ class TestBaseMultitenantManager(IsolatedAsyncioTestCase):
             algorithm="HS256",
         )
 
-        with mock.patch.object(
-            self.manager, "get_wallet_profile"
-        ) as get_wallet_profile:
+        with mock.patch.object(self.manager, "get_wallet_profile") as get_wallet_profile:
             mock_profile = InMemoryProfile.test_profile()
             get_wallet_profile.return_value = mock_profile
 
@@ -653,7 +640,7 @@ class TestBaseMultitenantManager(IsolatedAsyncioTestCase):
         recipient_keys = ["1", "2", "3", "4"]
 
         mock_wire_format = mock.MagicMock(
-            get_recipient_keys=lambda mesage_body: recipient_keys
+            get_recipient_keys=lambda message_body: recipient_keys
         )
 
         return_wallets = [
@@ -685,7 +672,5 @@ class TestBaseMultitenantManager(IsolatedAsyncioTestCase):
         ), mock.patch.object(
             self.manager, "get_wallet_profile", mock.CoroutineMock()
         ) as mock_get_wallet_profile:
-            profile = await self.manager.get_profile_for_key(
-                self.context, "test-verkey"
-            )
+            profile = await self.manager.get_profile_for_key(self.context, "test-verkey")
             assert profile == mock_get_wallet_profile.return_value

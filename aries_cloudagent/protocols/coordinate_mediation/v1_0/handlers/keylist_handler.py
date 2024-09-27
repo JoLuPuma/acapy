@@ -6,10 +6,8 @@ from .....messaging.base_handler import BaseHandler, HandlerException
 from .....messaging.request_context import RequestContext
 from .....messaging.responder import BaseResponder
 from .....storage.error import StorageNotFoundError
-
 from ..messages.keylist import Keylist
 from ..models.mediation_record import MediationRecord
-
 
 LOG = logging.getLogger(__name__)
 
@@ -19,9 +17,7 @@ class KeylistHandler(BaseHandler):
 
     async def handle(self, context: RequestContext, responder: BaseResponder):
         """Handle keylist message."""
-        self._logger.debug(
-            "%s called with context %s", self.__class__.__name__, context
-        )
+        self._logger.debug("%s called with context %s", self.__class__.__name__, context)
         assert isinstance(context.message, Keylist)
 
         if not context.connection_ready:

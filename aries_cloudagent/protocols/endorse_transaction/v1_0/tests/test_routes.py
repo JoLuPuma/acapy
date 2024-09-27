@@ -1,7 +1,7 @@
 import asyncio
 import json
-
 from unittest import IsolatedAsyncioTestCase
+
 from aries_cloudagent.tests import mock
 
 from .....connections.models.conn_record import ConnRecord
@@ -23,7 +23,11 @@ CRED_DEF_ID = f"{TEST_DID}:3:CL:12:tag1"
 
 class TestEndorseTransactionRoutes(IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.profile = InMemoryProfile.test_profile()
+        self.profile = InMemoryProfile.test_profile(
+            settings={
+                "admin.admin_api_key": "secret-key",
+            }
+        )
         self.context = self.profile.context
         setattr(self.context, "profile", self.profile)
         self.session = await self.profile.session()
@@ -67,6 +71,7 @@ class TestEndorseTransactionRoutes(IsolatedAsyncioTestCase):
             match_info={},
             query={},
             __getitem__=lambda _, k: self.request_dict[k],
+            headers={"x-api-key": "secret-key"},
         )
 
         self.test_did = "sample-did"
@@ -1548,18 +1553,14 @@ class TestEndorseTransactionRoutes(IsolatedAsyncioTestCase):
             mock_txn_mgr.return_value.complete_transaction = mock.CoroutineMock()
 
             mock_txn_mgr.return_value.complete_transaction.return_value = (
-                mock.CoroutineMock(
-                    serialize=mock.MagicMock(return_value={"...": "..."})
-                ),
+                mock.CoroutineMock(serialize=mock.MagicMock(return_value={"...": "..."})),
                 mock.CoroutineMock(),
             )
 
             mock_txn_rec_retrieve.return_value = mock.MagicMock(
                 serialize=mock.MagicMock(),
                 state=TransactionRecord.STATE_TRANSACTION_ENDORSED,
-                messages_attach=[
-                    {"data": {"json": json.dumps({"message": "attached"})}}
-                ],
+                messages_attach=[{"data": {"json": json.dumps({"message": "attached"})}}],
             )
             await test_module.transaction_write(self.request)
             mock_response.assert_called_once_with({"...": "..."})
@@ -1594,9 +1595,7 @@ class TestEndorseTransactionRoutes(IsolatedAsyncioTestCase):
             mock_txn_rec_retrieve.return_value = mock.MagicMock(
                 serialize=mock.MagicMock(return_value={"...": "..."}),
                 state=TransactionRecord.STATE_TRANSACTION_CREATED,
-                messages_attach=[
-                    {"data": {"json": json.dumps({"message": "attached"})}}
-                ],
+                messages_attach=[{"data": {"json": json.dumps({"message": "attached"})}}],
             )
 
             with self.assertRaises(test_module.web.HTTPForbidden):
@@ -1618,9 +1617,7 @@ class TestEndorseTransactionRoutes(IsolatedAsyncioTestCase):
             mock_txn_rec_retrieve.return_value = mock.MagicMock(
                 serialize=mock.MagicMock(return_value={"...": "..."}),
                 state=TransactionRecord.STATE_TRANSACTION_ENDORSED,
-                messages_attach=[
-                    {"data": {"json": json.dumps({"message": "attached"})}}
-                ],
+                messages_attach=[{"data": {"json": json.dumps({"message": "attached"})}}],
             )
 
             with self.assertRaises(test_module.web.HTTPBadRequest):

@@ -12,9 +12,7 @@ from .....messaging.decorators.attach_decorator import (
 from ..message_types import CRED_20_REQUEST, PROTOCOL_PACKAGE
 from .cred_format import V20CredFormat, V20CredFormatSchema
 
-HANDLER_CLASS = (
-    f"{PROTOCOL_PACKAGE}.handlers.cred_request_handler.V20CredRequestHandler"
-)
+HANDLER_CLASS = f"{PROTOCOL_PACKAGE}.handlers.cred_request_handler.V20CredRequestHandler"
 
 
 class V20CredRequest(AgentMessage):
@@ -39,10 +37,13 @@ class V20CredRequest(AgentMessage):
         """Initialize credential request object.
 
         Args:
-            requests_attach: requests attachments
-            comment: optional comment
-            formats: acceptable attachment formats
-            requests_attach: list of request attachments
+            _id (str): The identifier for the credential request.
+            comment (str, optional): An optional comment for the credential request.
+            formats (Sequence[V20CredFormat], optional): A list of acceptable attachment
+                formats.
+            requests_attach (Sequence[AttachDecorator], optional): A list of request
+                attachments.
+            kwargs: Additional key-value arguments to map into message class properties.
 
         """
         super().__init__(_id=_id, **kwargs)

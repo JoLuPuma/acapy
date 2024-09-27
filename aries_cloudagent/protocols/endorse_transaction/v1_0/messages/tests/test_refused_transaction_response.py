@@ -1,12 +1,7 @@
-from unittest import mock
-from unittest import TestCase
-
-from unittest import IsolatedAsyncioTestCase
+from unittest import IsolatedAsyncioTestCase, TestCase, mock
 
 from .....didcomm_prefix import DIDCommPrefix
-
 from ...message_types import REFUSED_TRANSACTION_RESPONSE
-
 from ..refused_transaction_response import RefusedTransactionResponse
 
 
@@ -78,9 +73,7 @@ class TestRefusedTransactionResponse(TestCase, TestConfig):
         """
         Test serialization.
         """
-        refused_transaction_response_dict = (
-            self.refused_transaction_response.serialize()
-        )
+        refused_transaction_response_dict = self.refused_transaction_response.serialize()
         mock_refused_transaction_response_schema_dump.assert_called_once_with(
             self.refused_transaction_response
         )

@@ -1,12 +1,7 @@
-from unittest import mock
-from unittest import TestCase
-
-from unittest import IsolatedAsyncioTestCase
+from unittest import IsolatedAsyncioTestCase, TestCase, mock
 
 from .....didcomm_prefix import DIDCommPrefix
-
 from ...message_types import TRANSACTION_REQUEST
-
 from ..transaction_request import TransactionRequest
 
 
@@ -104,8 +99,7 @@ class TestTransactionRequest(TestCase, TestConfig):
         )
 
         assert (
-            transaction_request_dict
-            is mock_transaction_request_schema_dump.return_value
+            transaction_request_dict is mock_transaction_request_schema_dump.return_value
         )
 
 

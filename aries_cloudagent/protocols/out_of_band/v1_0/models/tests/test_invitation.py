@@ -1,11 +1,8 @@
 from unittest import IsolatedAsyncioTestCase
 
 from .....didcomm_prefix import DIDCommPrefix
-
-from .....didexchange.v1_0.message_types import ARIES_PROTOCOL as DIDX_PROTO
-
+from .....didexchange.v1_0.message_types import ARIES_PROTOCOL as DIDEX_1_1
 from ...messages.invitation import InvitationMessage
-
 from ..invitation import InvitationRecord
 
 TEST_DID = "did:sov:55GkHamhTU1ZbTbV2ab9DE"
@@ -32,9 +29,8 @@ class TestInvitationRecordSchema(IsolatedAsyncioTestCase):
     def test_make_record(self):
         """Test making record."""
         invi = InvitationMessage(
-            comment="Hello",
             label="A label",
-            handshake_protocols=[DIDCommPrefix.qualify_current(DIDX_PROTO)],
+            handshake_protocols=[DIDCommPrefix.qualify_current(DIDEX_1_1)],
             services=[TEST_DID],
         )
         data = {

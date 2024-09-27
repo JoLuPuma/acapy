@@ -2,18 +2,16 @@
 
 import asyncio
 import logging
-
-from typing import Tuple, Optional, Sequence
+from typing import Optional, Sequence, Tuple
 
 from ....core.error import BaseError
+from ....core.goal_code_registry import GoalCodeRegistry
 from ....core.profile import Profile
 from ....core.protocol_registry import ProtocolRegistry
-from ....core.goal_code_registry import GoalCodeRegistry
-from ....storage.error import StorageNotFoundError
 from ....messaging.responder import BaseResponder
-
+from ....storage.error import StorageNotFoundError
 from .messages.disclosures import Disclosures
-from .messages.queries import QueryItem, Queries
+from .messages.queries import Queries, QueryItem
 from .models.discovery_record import V20DiscoveryExchangeRecord
 
 
@@ -87,7 +85,7 @@ class V20DiscoveryMgr:
                 return None
 
     async def proactive_disclose_features(self, connection_id: str):
-        """Proactively dislose features on active connection setup."""
+        """Proactively disclose features on active connection setup."""
         queries_msg = Queries(
             queries=[
                 QueryItem(feature_type="protocol", match="*"),
@@ -202,7 +200,7 @@ class V20DiscoveryMgr:
         queries = []
         if not query_goal_code and not query_protocol:
             raise V20DiscoveryMgrError(
-                "Atleast one protocol or goal-code feature-type query is required."
+                "At least one protocol or goal-code feature-type query is required."
             )
         if query_protocol:
             queries.append(QueryItem(feature_type="protocol", match=query_protocol))

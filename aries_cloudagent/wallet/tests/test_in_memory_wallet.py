@@ -77,9 +77,7 @@ class TestInMemoryWallet:
             await wallet.create_signing_key(BLS12381G2, "invalid-seed", None)
 
     @pytest.mark.asyncio
-    async def test_create_signing_key_unsupported_key_type(
-        self, wallet: InMemoryWallet
-    ):
+    async def test_create_signing_key_unsupported_key_type(self, wallet: InMemoryWallet):
         with pytest.raises(WalletError):
             await wallet.create_signing_key(X25519)
 
@@ -248,9 +246,7 @@ class TestInMemoryWallet:
     @pytest.mark.ursa_bbs_signatures
     async def test_local_verkey_bls12381g2(self, wallet: InMemoryWallet):
         await wallet.create_local_did(KEY, BLS12381G2, self.test_seed)
-        bls_info_get = await wallet.get_local_did_for_verkey(
-            self.test_bls12381g2_verkey
-        )
+        bls_info_get = await wallet.get_local_did_for_verkey(self.test_bls12381g2_verkey)
         assert bls_info_get.did == self.test_key_bls12381g2_did
         assert bls_info_get.verkey == self.test_bls12381g2_verkey
 
@@ -397,9 +393,7 @@ class TestInMemoryWallet:
         message_bin = self.test_message.encode("ascii")
         signature = await wallet.sign_message(message_bin, info.verkey)
         assert signature == self.test_signature
-        verify = await wallet.verify_message(
-            message_bin, signature, info.verkey, ED25519
-        )
+        verify = await wallet.verify_message(message_bin, signature, info.verkey, ED25519)
         assert verify
 
         bad_sig = b"x" + signature[1:]
@@ -449,9 +443,7 @@ class TestInMemoryWallet:
         assert verify
 
         bad_msg = b"x" + message_bin[1:]
-        verify = await wallet.verify_message(
-            bad_msg, signature, info.verkey, BLS12381G2
-        )
+        verify = await wallet.verify_message(bad_msg, signature, info.verkey, BLS12381G2)
         assert not verify
 
         with pytest.raises(WalletError):
@@ -549,3 +541,12 @@ class TestInMemoryWallet:
         assert "Setting DID endpoint is only allowed for did:sov DIDs" in str(
             context.value
         )
+
+    @pytest.mark.asyncio
+    async def test_assign_and_get_by_kid(self, wallet: InMemoryWallet):
+        key = await wallet.create_key(ED25519)
+
+        await wallet.assign_kid_to_key(key.verkey, "test_kid")
+
+        return_key = await wallet.get_key_by_kid("test_kid")
+        assert return_key.verkey == key.verkey

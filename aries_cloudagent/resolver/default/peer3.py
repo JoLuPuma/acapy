@@ -8,7 +8,8 @@ import logging
 import re
 from typing import Optional, Pattern, Sequence, Text
 
-from did_peer_2 import PATTERN as PEER2_PATTERN, PEER3_PATTERN, peer2to3, resolve_peer3
+from did_peer_2 import PATTERN as PEER2_PATTERN
+from did_peer_2 import PEER3_PATTERN, peer2to3, resolve_peer3
 
 from ...config.injection_context import InjectionContext
 from ...core.event_bus import Event, EventBus
@@ -17,7 +18,6 @@ from ...storage.base import BaseStorage
 from ...storage.error import StorageNotFoundError
 from ...storage.record import StorageRecord
 from ..base import BaseDIDResolver, DIDNotFound, ResolverType
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ class PeerDID3Resolver(BaseDIDResolver):
         return doc
 
     async def create_and_store(self, profile: Profile, peer2: str):
-        """Injest did:peer:2 create did:peer:3 and store document."""
+        """Inject did:peer:2 create did:peer:3 and store document."""
         if not PEER2_PATTERN.match(peer2):
             raise ValueError("did:peer:2 expected")
 
@@ -89,13 +89,15 @@ class PeerDID3Resolver(BaseDIDResolver):
         if not their_did and not my_did:
             return
         dids = [
-            *(did for did in (their_did, my_did) if PEER3_PATTERN.match(did)),
-            *(peer2to3(did) for did in (their_did, my_did) if PEER2_PATTERN.match(did)),
+            *(did for did in (their_did, my_did) if did and PEER3_PATTERN.match(did)),
+            *(
+                peer2to3(did)
+                for did in (their_did, my_did)
+                if did and PEER2_PATTERN.match(did)
+            ),
         ]
         if dids:
-            LOGGER.debug(
-                "Removing peer 2 to 3 mapping for deleted connection: %s", dids
-            )
+            LOGGER.debug("Removing peer 2 to 3 mapping for deleted connection: %s", dids)
         async with profile.session() as session:
             storage = session.inject(BaseStorage)
             for did in dids:

@@ -2,8 +2,9 @@
 
 import json
 import logging
-import uuid
 from asyncio import shield
+
+from uuid_utils import uuid4
 
 from ....anoncreds.issuer import AnonCredsIssuer
 from ....anoncreds.revocation import AnonCredsRevocation
@@ -20,12 +21,8 @@ from ....revocation.util import (
     notify_revocation_reg_endorsed_event,
 )
 from ....storage.error import StorageError, StorageNotFoundError
-from ....transport.inbound.receipt import MessageReceipt
 from ....wallet.base import BaseWallet
-from ....wallet.util import (
-    notify_endorse_did_attrib_event,
-    notify_endorse_did_event,
-)
+from ....wallet.util import notify_endorse_did_attrib_event, notify_endorse_did_event
 from .messages.cancel_transaction import CancelTransaction
 from .messages.endorsed_transaction_response import EndorsedTransactionResponse
 from .messages.refused_transaction_response import RefusedTransactionResponse
@@ -48,7 +45,7 @@ class TransactionManager:
         """Initialize a TransactionManager.
 
         Args:
-            session: The Profile Session for this transaction manager
+            profile: The profile instance for this transaction manager
         """
         self._profile = profile
         self._logger = logging.getLogger(__name__)
@@ -71,6 +68,7 @@ class TransactionManager:
         Args:
             messages_attach: messages to attach, JSON-dumped
             connection_id: The connection_id of the ConnRecord between author and endorser
+            meta_data: The meta_data to attach to the transaction record
 
         Returns:
             The transaction Record
@@ -78,7 +76,7 @@ class TransactionManager:
         """
 
         messages_attach_dict = {
-            "@id": str(uuid.uuid4()),
+            "@id": str(uuid4()),
             "mime-type": "application/json",
             "data": {"json": messages_attach},
         }
@@ -121,11 +119,28 @@ class TransactionManager:
         """Create a new Transaction Request.
 
         Args:
-            transaction: The transaction from which the request is created.
-            expires_time: The time till which the endorser should endorse the transaction.
+            transaction (TransactionRecord): The transaction from which the request is
+                created.
+            signature (str, optional): The signature for the transaction.
+                Defaults to None.
+            signed_request (dict, optional): The signed request for the transaction.
+                Defaults to None.
+            expires_time (str, optional): The time till which the endorser should endorse
+                the transaction. Defaults to None.
+            endorser_write_txn (bool, optional): Flag indicating if the endorser should
+                write the transaction. Defaults to False.
+            author_goal_code (str, optional): The goal code for the author.
+                Defaults to None.
+            signer_goal_code (str, optional): The goal code for the signer.
+                Defaults to None.
 
         Returns:
-            The transaction Record and transaction request
+            Tuple[TransactionRecord, TransactionRequest]: The transaction record and
+                transaction request.
+
+        Raises:
+            TransactionManagerError: If the transaction record is not in the
+                'STATE_TRANSACTION_CREATED' state.
 
         """
 
@@ -218,6 +233,7 @@ class TransactionManager:
         Args:
             transaction: The transaction record which would be endorsed.
             state: The state of the transaction record
+            use_endorser_did: The public did of the endorser
 
         Returns:
             The updated transaction and an endorsed response
@@ -226,7 +242,7 @@ class TransactionManager:
 
         if transaction.state not in (
             TransactionRecord.STATE_REQUEST_RECEIVED,
-            TransactionRecord.STATE_TRANSACTION_RESENT_RECEIEVED,
+            TransactionRecord.STATE_TRANSACTION_RESENT_RECEIVED,
         ):
             raise TransactionManagerError(
                 f"Cannot endorse transaction for transaction record"
@@ -293,9 +309,7 @@ class TransactionManager:
                 )
                 # we don't have an endorsed transaction so just return did meta-data
                 ledger_response = {
-                    "result": {
-                        "txn": {"type": "1", "data": {"dest": meta_data["did"]}}
-                    },
+                    "result": {"txn": {"type": "1", "data": {"dest": meta_data["did"]}}},
                     "meta_data": meta_data,
                 }
                 endorsed_msg = json.dumps(ledger_response)
@@ -394,6 +408,7 @@ class TransactionManager:
 
         Args:
             transaction: The transaction record which would be completed
+            endorser: True if the endorser is writing the ledger transaction
 
         Returns:
             The updated transaction
@@ -412,9 +427,10 @@ class TransactionManager:
 
         # if we are the author, we need to write the endorsed ledger transaction ...
         # ... EXCEPT for DID transactions, which the endorser will write
-        if (not endorser) and (
-            txn_goal_code != TransactionRecord.WRITE_DID_TRANSACTION
-        ):
+        if (not endorser) and (txn_goal_code != TransactionRecord.WRITE_DID_TRANSACTION):
+            ledger = self.profile.inject(BaseLedger)
+            if not ledger:
+                raise TransactionManagerError("No ledger available")
             if (
                 self._profile.context.settings.get_value("wallet.type")
                 == "askar-anoncreds"
@@ -424,14 +440,12 @@ class TransactionManager:
                 )
 
                 legacy_indy_registry = LegacyIndyRegistry()
-                ledger_response_json = await legacy_indy_registry.txn_submit(
-                    self._profile, ledger_transaction, sign=False, taa_accept=False
+                ledger_response_json = await shield(
+                    legacy_indy_registry.txn_submit(
+                        ledger, ledger_transaction, sign=False, taa_accept=False
+                    )
                 )
             else:
-                ledger = self.profile.inject(BaseLedger)
-                if not ledger:
-                    raise TransactionManagerError("No ledger available")
-
                 async with ledger:
                     try:
                         ledger_response_json = await shield(
@@ -523,6 +537,14 @@ class TransactionManager:
                 jobs = await connection_record.metadata_get(session, "transaction_jobs")
         except StorageNotFoundError as err:
             raise TransactionManagerError(err.roll_up) from err
+
+        is_auto_endorser = self._profile.settings.get(
+            "endorser.endorser"
+        ) and self._profile.settings.get("endorser.auto_endorse")
+
+        if is_auto_endorser:
+            return transaction
+
         if not jobs:
             raise TransactionManagerError(
                 "The transaction related jobs are not set up in "
@@ -549,6 +571,7 @@ class TransactionManager:
         Args:
             transaction: The transaction record which would be refused
             state: The state of the transaction record
+            refuser_did: The public did of the refuser
 
         Returns:
             The updated transaction and the refused response
@@ -557,7 +580,7 @@ class TransactionManager:
 
         if transaction.state not in (
             TransactionRecord.STATE_REQUEST_RECEIVED,
-            TransactionRecord.STATE_TRANSACTION_RESENT_RECEIEVED,
+            TransactionRecord.STATE_TRANSACTION_RESENT_RECEIVED,
         ):
             raise TransactionManagerError(
                 f"Cannot refuse transaction for transaction record"
@@ -692,7 +715,7 @@ class TransactionManager:
             await transaction.save(session, reason="Resends the transaction request")
 
         resend_transaction_response = TransactionResend(
-            state=TransactionRecord.STATE_TRANSACTION_RESENT_RECEIEVED,
+            state=TransactionRecord.STATE_TRANSACTION_RESENT_RECEIVED,
             thread_id=transaction._id,
         )
 
@@ -744,20 +767,17 @@ class TransactionManager:
         return tx_job_to_send
 
     async def set_transaction_their_job(
-        self, tx_job_received: TransactionJobToSend, receipt: MessageReceipt
+        self, tx_job_received: TransactionJobToSend, connection: ConnRecord
     ):
         """Set transaction_their_job.
 
         Args:
             tx_job_received: The transaction job that is received from the other agent
-            receipt: The Message Receipt Object
+            connection: connection to set metadata on
         """
 
         try:
             async with self._profile.session() as session:
-                connection = await ConnRecord.retrieve_by_did(
-                    session, receipt.sender_did, receipt.recipient_did
-                )
                 value = await connection.metadata_get(session, "transaction_jobs")
                 if value:
                     value["transaction_their_job"] = tx_job_received.job
@@ -780,6 +800,8 @@ class TransactionManager:
         Args:
             transaction: The transaction from which the schema/cred_def
                          would be stored in wallet.
+            ledger_response: The ledger response
+            connection_record: The connection record
         """
 
         if isinstance(ledger_response, str):
@@ -863,14 +885,15 @@ class TransactionManager:
         elif ledger_response["result"]["txn"]["type"] == "114":
             # revocation entry transaction
             rev_reg_id = ledger_response["result"]["txn"]["data"]["revocRegDefId"]
+            revoked = ledger_response["result"]["txn"]["data"]["value"].get("revoked", [])
             meta_data["context"]["rev_reg_id"] = rev_reg_id
             if is_anoncreds:
                 await AnonCredsRevocation(self._profile).finish_revocation_list(
-                    meta_data["context"]["job_id"], rev_reg_id
+                    meta_data["context"]["job_id"], rev_reg_id, revoked
                 )
             else:
                 await notify_revocation_entry_endorsed_event(
-                    self._profile, rev_reg_id, meta_data
+                    self._profile, rev_reg_id, meta_data, revoked
                 )
 
         elif ledger_response["result"]["txn"]["type"] == "1":

@@ -5,6 +5,10 @@ from os.path import isdir, join
 from pathlib import Path
 from platform import system
 
+from aiohttp import web
+
+from .error_messages import ANONCREDS_PROFILE_REQUIRED_MSG
+
 
 async def generate_pr_nonce() -> str:
     """Generate a nonce for a proof request."""
@@ -26,7 +30,9 @@ def indy_client_dir(subpath: str = None, create: bool = False) -> str:
         (
             "Documents"
             if isdir(join(home, "Documents"))
-            else getenv("EXTERNAL_STORAGE", "") if system() == "Linux" else ""
+            else getenv("EXTERNAL_STORAGE", "")
+            if system() == "Linux"
+            else ""
         ),
         ".indy_client",
         subpath if subpath else "",
@@ -36,3 +42,10 @@ def indy_client_dir(subpath: str = None, create: bool = False) -> str:
         makedirs(target_dir, exist_ok=True)
 
     return target_dir
+
+
+def handle_value_error(e: ValueError):
+    """Handle ValueError message as web response type."""
+    if ANONCREDS_PROFILE_REQUIRED_MSG in str(e):
+        raise web.HTTPForbidden(reason=str(e)) from e
+    raise web.HTTPInternalServerError() from e

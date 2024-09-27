@@ -1,12 +1,7 @@
-from unittest import mock
-from unittest import TestCase
-
-from unittest import IsolatedAsyncioTestCase
+from unittest import IsolatedAsyncioTestCase, TestCase, mock
 
 from .....didcomm_prefix import DIDCommPrefix
-
 from ...message_types import ENDORSED_TRANSACTION_RESPONSE
-
 from ..endorsed_transaction_response import EndorsedTransactionResponse
 
 
@@ -40,8 +35,7 @@ class TestEndorsedTransactionResponse(TestCase, TestConfig):
     def test_init(self):
         """Test initialization."""
         assert (
-            self.endorsed_transaction_response.transaction_id
-            == self.test_transaction_id
+            self.endorsed_transaction_response.transaction_id == self.test_transaction_id
         )
         assert self.endorsed_transaction_response.thread_id == self.test_thread_id
         assert (
@@ -53,9 +47,8 @@ class TestEndorsedTransactionResponse(TestCase, TestConfig):
 
     def test_type(self):
         """Test type."""
-        assert (
-            self.endorsed_transaction_response._type
-            == DIDCommPrefix.qualify_current(ENDORSED_TRANSACTION_RESPONSE)
+        assert self.endorsed_transaction_response._type == DIDCommPrefix.qualify_current(
+            ENDORSED_TRANSACTION_RESPONSE
         )
 
     @mock.patch(

@@ -1,7 +1,7 @@
 from unittest import TestCase
 
-from ..check import get_properties_without_context
 from ...tests.document_loader import custom_document_loader
+from ..check import get_properties_without_context
 
 VALID_INPUT_DOC = {
     "@context": [
@@ -148,8 +148,7 @@ INVALID_VACCINATION_DOC = {
 class TestCheck(TestCase):
     def test_get_properties_without_context_valid(self):
         assert (
-            get_properties_without_context(VALID_INPUT_DOC, custom_document_loader)
-            == []
+            get_properties_without_context(VALID_INPUT_DOC, custom_document_loader) == []
         )
 
     def test_get_properties_without_context_invalid(self):
@@ -168,9 +167,7 @@ class TestCheck(TestCase):
 
     def test_get_properties_without_context_vaccination_valid(self):
         assert (
-            get_properties_without_context(
-                VALID_VACCINATION_DOC, custom_document_loader
-            )
+            get_properties_without_context(VALID_VACCINATION_DOC, custom_document_loader)
             == []
         )
 

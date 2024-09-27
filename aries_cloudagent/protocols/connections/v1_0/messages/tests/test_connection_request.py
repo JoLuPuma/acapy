@@ -1,20 +1,9 @@
-from unittest import mock
-from unittest import TestCase
+from unittest import IsolatedAsyncioTestCase, TestCase, mock
 
-from unittest import IsolatedAsyncioTestCase
-
-from ......connections.models.diddoc import (
-    DIDDoc,
-    PublicKey,
-    PublicKeyType,
-    Service,
-)
-
+from ......connections.models.diddoc import DIDDoc, PublicKey, PublicKeyType, Service
 from .....didcomm_prefix import DIDCommPrefix
-
 from ...message_types import CONNECTION_REQUEST
 from ...models.connection_detail import ConnectionDetail
-
 from ..connection_request import ConnectionRequest
 
 
@@ -100,9 +89,7 @@ class TestConnectionRequest(TestCase, TestConfig):
             self.connection_request
         )
 
-        assert (
-            connection_request_dict is mock_connection_request_schema_dump.return_value
-        )
+        assert connection_request_dict is mock_connection_request_schema_dump.return_value
 
 
 class TestConnectionRequestSchema(IsolatedAsyncioTestCase, TestConfig):

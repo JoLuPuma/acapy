@@ -1,23 +1,21 @@
 import asyncio
 import json
+from collections import OrderedDict
+from copy import deepcopy
+from unittest import IsolatedAsyncioTestCase
+
 import pytest
 
-from unittest import IsolatedAsyncioTestCase
 from aries_cloudagent.tests import mock
-from copy import deepcopy
-
-from collections import OrderedDict
 
 from ....cache.base import BaseCache
 from ....cache.in_memory import InMemoryCache
 from ....core.in_memory import InMemoryProfile
 from ....ledger.base import BaseLedger
 from ....messaging.responder import BaseResponder
-
 from ...error import LedgerError
 from ...indy_vdr import IndyVdrLedger, IndyVdrLedgerPool
 from ...merkel_validation.tests.test_data import GET_NYM_REPLY
-
 from .. import indy_vdr_manager as test_module
 from ..base_manager import MultipleLedgerManagerError
 from ..indy_vdr_manager import MultiIndyVDRLedgerManager
@@ -107,12 +105,12 @@ class TestMultiIndyVDRLedgerManager(IsolatedAsyncioTestCase):
             writable_ledgers=writable_ledgers,
             endorser_map=endorser_info_map,
         )
-        assert (
-            "endorser_1"
-        ), "test_public_did_1" == manager.get_endorser_info_for_ledger("test_prod_1")
-        assert (
-            "endorser_2"
-        ), "test_public_did_2" == manager.get_endorser_info_for_ledger("test_prod_2")
+        assert "endorser_1", "test_public_did_1" == manager.get_endorser_info_for_ledger(
+            "test_prod_1"
+        )
+        assert "endorser_2", "test_public_did_2" == manager.get_endorser_info_for_ledger(
+            "test_prod_2"
+        )
 
     async def test_get_write_ledgers(self):
         ledger_ids = await self.manager.get_write_ledgers()

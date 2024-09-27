@@ -5,17 +5,15 @@ import sys
 from timeit import default_timer
 
 import prompt_toolkit
+import pygments
 from prompt_toolkit.application import run_in_terminal
 from prompt_toolkit.eventloop.defaults import use_asyncio_event_loop
+from prompt_toolkit.formatted_text import FormattedText, PygmentsTokens
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.shortcuts import ProgressBar
-
-import pygments
 from pygments.filter import Filter
 from pygments.lexer import Lexer
 from pygments.lexers.data import JsonLdLexer
-from prompt_toolkit.formatted_text import FormattedText, PygmentsTokens
-
 
 COLORIZE = bool(os.getenv("COLORIZE", True))
 
@@ -115,7 +113,7 @@ def output_reader(handle, callback, *args, **kwargs):
             break
         try:
             run_in_terminal(functools.partial(callback, line, *args))
-        except AssertionError as e:
+        except AssertionError:
             # see comment in DemoAgent.handle_output
             # trace log and prompt_toolkit do not get along...
             pass
@@ -245,19 +243,7 @@ def progress(*args, **kwargs):
 def check_requires(args):
     wtype = args.wallet_type or "askar"
 
-    if wtype == "indy":
-        try:
-            from indy.libindy import _cdll
-
-            _cdll()
-        except ImportError:
-            print("python3-indy module not installed")
-            sys.exit(1)
-        except OSError:
-            print("libindy shared library could not be loaded")
-            sys.exit(1)
-
-    elif wtype == "askar":
+    if wtype == "askar":
         try:
             from aries_askar.bindings import get_library
 

@@ -1,6 +1,6 @@
 Feature: ACA-Py Revocation API 
 
-   @Revoc-api @GHA
+   @Revoc-api @Release
    Scenario Outline: Using revocation api, issue and revoke credentials
       Given we have "3" agents
          | name  | role     | capabilities        |
@@ -19,7 +19,7 @@ Feature: ACA-Py Revocation API
          #| Acme   | --revocation --public-did                  |                  | driverslicense_v2 | Data_DL_MaxValues | DL_age_over_19_v2 |
          | Acme   | --revocation --public-did --wallet-type askar-anoncreds | --wallet-type askar-anoncreds | driverslicense_v2 | Data_DL_MaxValues | DL_age_over_19_v2 |
 
-   @Revoc-api @GHA
+   @Revoc-api @Release
    Scenario Outline: Using revocation api, issue, revoke credentials and publish
       Given we have "3" agents
          | name  | role     | capabilities        |
@@ -39,10 +39,12 @@ Feature: ACA-Py Revocation API
       Then "Bob" can verify the credential from "<issuer>" was revoked
       Examples:
          | issuer | Acme_capabilities                          | Bob_capabilities | Schema_name       | Credential_data   | Proof_request     |
-         #| Acme   | --revocation --public-did                  |                  | driverslicense_v2 | Data_DL_MaxValues | DL_age_over_19_v2 |
+         | Acme   | --revocation --public-did                  |                  | driverslicense_v2 | Data_DL_MaxValues | DL_age_over_19_v2 |
          | Acme   | --revocation --public-did --wallet-type askar-anoncreds | --wallet-type askar-anoncreds | driverslicense_v2 | Data_DL_MaxValues | DL_age_over_19_v2 |
+         | Acme   | --revocation --public-did --multitenant | --wallet-type askar-anoncreds | driverslicense_v2 | Data_DL_MaxValues | DL_age_over_19_v2 |
+         | Acme   | --revocation --public-did --multitenant --wallet-type askar-anoncreds | --wallet-type askar-anoncreds | driverslicense_v2 | Data_DL_MaxValues | DL_age_over_19_v2 |
 
-   @Revoc-api.x @GHA-Anoncreds-break
+   @Revoc-api.x @PR-Anoncreds-break
    Scenario Outline: Without endorser: issue, revoke credentials, manually create revocation registries
       Given we have "3" agents
          | name  | role     | capabilities        |
@@ -69,10 +71,12 @@ Feature: ACA-Py Revocation API
       Then "Bob" can verify the credential from "<issuer>" was revoked
       Examples:
          | issuer | Acme_capabilities                          | Bob_capabilities | Schema_name       | Credential_data   | Proof_request     |
-         #| Acme   | --revocation --public-did --did-exchange   |                  | driverslicense_v2 | Data_DL_MaxValues | DL_age_over_19_v2 |
+         | Acme   | --revocation --public-did --did-exchange | --wallet-type askar | driverslicense_v2 | Data_DL_MaxValues | DL_age_over_19_v2 |
          | Acme   | --revocation --public-did --did-exchange --wallet-type askar-anoncreds | --wallet-type askar-anoncreds | driverslicense_v2 | Data_DL_MaxValues | DL_age_over_19_v2 |
+         | Acme   | --revocation --public-did --did-exchange --multitenant --wallet-type askar | --wallet-type askar-anoncreds | driverslicense_v2 | Data_DL_MaxValues | DL_age_over_19_v2 |
+         | Acme   | --revocation --public-did --did-exchange --multitenant --wallet-type askar-anoncreds | --wallet-type askar-anoncreds | driverslicense_v2 | Data_DL_MaxValues | DL_age_over_19_v2 |
 
-   @Revoc-api @GHA
+   @Revoc-api @Release
    Scenario Outline: Using revocation api, rotate revocation 
       Given we have "3" agents
          | name  | role     | capabilities        |
@@ -89,7 +93,7 @@ Feature: ACA-Py Revocation API
          #| Acme   | --revocation --public-did                  |                  | driverslicense_v2 | Data_DL_MaxValues | DL_age_over_19_v2 |
          | Acme   | --revocation --public-did --wallet-type askar-anoncreds | --wallet-type askar-anoncreds | driverslicense_v2 | Data_DL_MaxValues | DL_age_over_19_v2 |
 
-   @Revoc-api @GHA
+   @Revoc-api @Release
    Scenario Outline: Using revocation api, fill registry (need to run with "TAILS_FILE_COUNT": "4" env var)
       Given we have "2" agents
          | name  | role     | capabilities        |

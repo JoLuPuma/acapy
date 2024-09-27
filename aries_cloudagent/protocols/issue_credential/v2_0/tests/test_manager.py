@@ -1,39 +1,36 @@
 import json
-
-
-from aries_cloudagent.tests import mock
 from unittest import IsolatedAsyncioTestCase
 
+from aries_cloudagent.tests import mock
+
+from .....anoncreds.issuer import AnonCredsIssuer
 from .....cache.base import BaseCache
 from .....cache.in_memory import InMemoryCache
 from .....core.in_memory import InMemoryProfile
-from .....anoncreds.issuer import AnonCredsIssuer
 from .....indy.issuer import IndyIssuer
-from .....messaging.decorators.thread_decorator import ThreadDecorator
-from .....messaging.decorators.attach_decorator import AttachDecorator
-from .....messaging.responder import BaseResponder, MockResponder
 from .....ledger.base import BaseLedger
+from .....messaging.decorators.attach_decorator import AttachDecorator
+from .....messaging.decorators.thread_decorator import ThreadDecorator
+from .....messaging.responder import BaseResponder, MockResponder
 from .....storage.error import StorageNotFoundError
-
 from .. import manager as test_module
 from ..manager import V20CredManager, V20CredManagerError
 from ..message_types import (
     ATTACHMENT_FORMAT,
-    CRED_20_PROPOSAL,
-    CRED_20_OFFER,
-    CRED_20_REQUEST,
     CRED_20_ISSUE,
+    CRED_20_OFFER,
+    CRED_20_PROPOSAL,
+    CRED_20_REQUEST,
 )
 from ..messages.cred_ack import V20CredAck
-from ..messages.cred_issue import V20CredIssue
 from ..messages.cred_format import V20CredFormat
+from ..messages.cred_issue import V20CredIssue
 from ..messages.cred_offer import V20CredOffer
 from ..messages.cred_problem_report import V20CredProblemReport
 from ..messages.cred_proposal import V20CredProposal
 from ..messages.cred_request import V20CredRequest
-from ..messages.inner.cred_preview import V20CredPreview, V20CredAttrSpec
+from ..messages.inner.cred_preview import V20CredAttrSpec, V20CredPreview
 from ..models.cred_ex_record import V20CredExRecord
-
 from . import (
     CRED_DEF,
     CRED_DEF_ID,
@@ -90,9 +87,7 @@ class TestV20CredManager(IsolatedAsyncioTestCase):
         Ledger = mock.MagicMock()
         self.ledger = Ledger()
         self.ledger.get_schema = mock.CoroutineMock(return_value=SCHEMA)
-        self.ledger.get_credential_definition = mock.CoroutineMock(
-            return_value=CRED_DEF
-        )
+        self.ledger.get_credential_definition = mock.CoroutineMock(return_value=CRED_DEF)
         self.ledger.get_revoc_reg_def = mock.CoroutineMock(return_value=REV_REG_DEF)
         self.ledger.__aenter__ = mock.CoroutineMock(return_value=self.ledger)
         self.ledger.credential_definition_id2schema_id = mock.CoroutineMock(
@@ -168,9 +163,7 @@ class TestV20CredManager(IsolatedAsyncioTestCase):
                             V20CredFormat.Format.INDY.api
                         ],
                     ),
-                    AttachDecorator.data_base64(
-                        {}, ident=V20CredFormat.Format.INDY.api
-                    ),
+                    AttachDecorator.data_base64({}, ident=V20CredFormat.Format.INDY.api),
                 )
             )
             cx_rec = await self.manager.create_proposal(
@@ -230,8 +223,7 @@ class TestV20CredManager(IsolatedAsyncioTestCase):
 
         cred_proposal = cx_rec.cred_proposal
         assert (
-            cred_proposal.attachment(V20CredFormat.Format.LD_PROOF)
-            == LD_PROOF_VC_DETAIL
+            cred_proposal.attachment(V20CredFormat.Format.LD_PROOF) == LD_PROOF_VC_DETAIL
         )
         assert cx_rec.connection_id == connection_id
         assert cx_rec.thread_id == cred_proposal._thread_id
@@ -283,8 +275,7 @@ class TestV20CredManager(IsolatedAsyncioTestCase):
                 "cred_def_id": CRED_DEF_ID
             }
             assert (
-                ret_cred_proposal.credential_preview.attributes
-                == cred_preview.attributes
+                ret_cred_proposal.credential_preview.attributes == cred_preview.attributes
             )
             assert cx_rec.connection_id == connection_id
             assert cx_rec.role == V20CredExRecord.ROLE_ISSUER
@@ -426,9 +417,7 @@ class TestV20CredManager(IsolatedAsyncioTestCase):
             assert ret_cx_rec == cx_rec
             mock_save.assert_called_once()
 
-            mock_handler.return_value.create_offer.assert_called_once_with(
-                cred_proposal
-            )
+            mock_handler.return_value.create_offer.assert_called_once_with(cred_proposal)
 
             assert cx_rec.thread_id == ret_offer._thread_id
             assert cx_rec.cred_offer.replacement_id == ret_offer.replacement_id
@@ -837,9 +826,7 @@ class TestV20CredManager(IsolatedAsyncioTestCase):
             mock_retrieve.return_value = stored_cx_rec
             mock_handler.return_value.receive_request = mock.CoroutineMock()
 
-            cx_rec = await self.manager.receive_request(
-                cred_request, mock_conn, mock_oob
-            )
+            cx_rec = await self.manager.receive_request(cred_request, mock_conn, mock_oob)
 
             mock_retrieve.assert_called_once_with(
                 self.session,
@@ -998,9 +985,7 @@ class TestV20CredManager(IsolatedAsyncioTestCase):
             )
 
             mock_save.assert_called_once()
-            mock_handler.return_value.issue_credential.assert_called_once_with(
-                ret_cx_rec
-            )
+            mock_handler.return_value.issue_credential.assert_called_once_with(ret_cx_rec)
 
             assert ret_cx_rec.cred_issue.attachment() == INDY_CRED
             assert ret_cred_issue.attachment() == INDY_CRED
@@ -1107,9 +1092,7 @@ class TestV20CredManager(IsolatedAsyncioTestCase):
             )
 
             mock_save.assert_called_once()
-            mock_handler.return_value.issue_credential.assert_called_once_with(
-                ret_cx_rec
-            )
+            mock_handler.return_value.issue_credential.assert_called_once_with(ret_cx_rec)
 
             assert ret_cx_rec.cred_issue.attachment() == INDY_CRED
             assert ret_cred_issue.attachment() == INDY_CRED
@@ -1274,9 +1257,8 @@ class TestV20CredManager(IsolatedAsyncioTestCase):
                     cred_issue,
                     connection_id,
                 )
-            assert (
-                "Received issue credential format(s) not present in credential"
-                in str(context.exception)
+            assert "Received issue credential format(s) not present in credential" in str(
+                context.exception
             )
 
     async def test_receive_cred_x_no_formats(self):

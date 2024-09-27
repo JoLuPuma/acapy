@@ -1,20 +1,18 @@
 import json
-import pytest
 import os
+from unittest import IsolatedAsyncioTestCase
+
+import pytest
 
 from aries_cloudagent.tests import mock
 
-from unittest import IsolatedAsyncioTestCase
-
 from ...askar.profile import AskarProfileManager
 from ...config.injection_context import InjectionContext
-
+from .. import askar as test_module
 from ..askar import AskarStorage
 from ..base import BaseStorage
 from ..error import StorageError, StorageSearchError
 from ..record import StorageRecord
-from .. import askar as test_module
-
 from . import test_in_memory_storage
 
 
@@ -376,5 +374,9 @@ class TestAskarStorageSearchSession(IsolatedAsyncioTestCase):
             assert storageSearchSession._scan == askar_profile_scan
             askar_profile.settings.get.assert_called_once_with("wallet.askar_profile")
             askar_profile.store.scan.assert_called_once_with(
-                "filter", "tagQuery", profile=profile
+                category="filter",
+                tag_filter="tagQuery",
+                limit=None,
+                offset=None,
+                profile=profile,
             )

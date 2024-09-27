@@ -1,25 +1,24 @@
 """Ledger configuration."""
 
-from collections import OrderedDict
 import logging
 import re
 import sys
+from collections import OrderedDict
 from typing import Optional
-import uuid
 
 import markdown
 import prompt_toolkit
 from prompt_toolkit.eventloop.defaults import use_asyncio_event_loop
 from prompt_toolkit.formatted_text import HTML
+from uuid_utils import uuid4
 
 from ..config.settings import Settings
 from ..core.profile import Profile
 from ..ledger.base import BaseLedger
 from ..ledger.endpoint_type import EndpointType
 from ..ledger.error import LedgerError
-from ..utils.http import fetch, FetchError
+from ..utils.http import FetchError, fetch
 from ..wallet.base import BaseWallet
-
 from .base import ConfigError
 
 LOGGER = logging.getLogger(__name__)
@@ -48,9 +47,7 @@ async def get_genesis_transactions(settings: Settings) -> str:
         elif settings.get("ledger.genesis_file"):
             try:
                 genesis_path = settings["ledger.genesis_file"]
-                LOGGER.info(
-                    "Reading ledger genesis transactions from: %s", genesis_path
-                )
+                LOGGER.info("Reading ledger genesis transactions from: %s", genesis_path)
                 with open(genesis_path, "r") as genesis_file:
                     txns = genesis_file.read()
             except IOError as e:
@@ -82,13 +79,11 @@ async def load_multiple_genesis_transactions_from_config(settings: Settings):
                     with open(genesis_path, "r") as genesis_file:
                         txns = genesis_file.read()
                 except IOError as e:
-                    raise ConfigError(
-                        "Error reading ledger genesis transactions"
-                    ) from e
+                    raise ConfigError("Error reading ledger genesis transactions") from e
         is_write_ledger = (
             False if config.get("is_write") is None else config.get("is_write")
         )
-        ledger_id = config.get("id") or str(uuid.uuid4())
+        ledger_id = config.get("id") or str(uuid4())
         if is_write_ledger:
             write_ledger_set = True
         config_item = {
@@ -110,10 +105,14 @@ async def load_multiple_genesis_transactions_from_config(settings: Settings):
         if "endorser_did" in config:
             config_item["endorser_did"] = config.get("endorser_did")
         ledger_txns_list.append(config_item)
-    if not write_ledger_set and not (
-        settings.get("ledger.genesis_transactions")
-        or settings.get("ledger.genesis_file")
-        or settings.get("ledger.genesis_url")
+    if (
+        not write_ledger_set
+        and not settings.get("ledger.read_only")
+        and not (
+            settings.get("ledger.genesis_transactions")
+            or settings.get("ledger.genesis_file")
+            or settings.get("ledger.genesis_url")
+        )
     ):
         raise ConfigError(
             "No is_write ledger set and no genesis_url,"

@@ -12,6 +12,7 @@ from aiohttp_apispec import (
 )
 from marshmallow import fields, validate
 
+from ....admin.decorators.auth import tenant_authentication
 from ....admin.request_context import AdminRequestContext
 from ....connections.models.conn_record import ConnRecord
 from ....core.event_bus import Event, EventBus
@@ -113,9 +114,7 @@ class EndorserInfoSchema(OpenAPISchema):
 
     endorser_did = fields.Str(required=True, metadata={"description": "Endorser DID"})
 
-    endorser_name = fields.Str(
-        required=False, metadata={"description": "Endorser Name"}
-    )
+    endorser_name = fields.Str(required=False, metadata={"description": "Endorser Name"})
 
 
 @docs(
@@ -124,6 +123,7 @@ class EndorserInfoSchema(OpenAPISchema):
 )
 @querystring_schema(TransactionsListQueryStringSchema())
 @response_schema(TransactionListSchema(), 200)
+@tenant_authentication
 async def transactions_list(request: web.BaseRequest):
     """Request handler for searching transaction records.
 
@@ -153,6 +153,7 @@ async def transactions_list(request: web.BaseRequest):
 @docs(tags=["endorse-transaction"], summary="Fetch a single transaction record")
 @match_info_schema(TranIdMatchInfoSchema())
 @response_schema(TransactionRecordSchema(), 200)
+@tenant_authentication
 async def transactions_retrieve(request: web.BaseRequest):
     """Request handler for fetching a single transaction record.
 
@@ -186,6 +187,7 @@ async def transactions_retrieve(request: web.BaseRequest):
 @querystring_schema(TranIdMatchInfoSchema())
 @request_schema(DateSchema())
 @response_schema(TransactionRecordSchema(), 200)
+@tenant_authentication
 async def transaction_create_request(request: web.BaseRequest):
     """Request handler for creating a new transaction record and request.
 
@@ -276,6 +278,7 @@ async def transaction_create_request(request: web.BaseRequest):
 @querystring_schema(EndorserDIDInfoSchema())
 @match_info_schema(TranIdMatchInfoSchema())
 @response_schema(TransactionRecordSchema(), 200)
+@tenant_authentication
 async def endorse_transaction_response(request: web.BaseRequest):
     """Request handler for creating an endorsed transaction response.
 
@@ -292,9 +295,7 @@ async def endorse_transaction_response(request: web.BaseRequest):
     endorser_did = request.query.get("endorser_did")
     try:
         async with context.profile.session() as session:
-            transaction = await TransactionRecord.retrieve_by_id(
-                session, transaction_id
-            )
+            transaction = await TransactionRecord.retrieve_by_id(session, transaction_id)
             connection_record = await ConnRecord.retrieve_by_id(
                 session, transaction.connection_id
             )
@@ -347,6 +348,7 @@ async def endorse_transaction_response(request: web.BaseRequest):
 )
 @match_info_schema(TranIdMatchInfoSchema())
 @response_schema(TransactionRecordSchema(), 200)
+@tenant_authentication
 async def refuse_transaction_response(request: web.BaseRequest):
     """Request handler for creating a refused transaction response.
 
@@ -362,9 +364,7 @@ async def refuse_transaction_response(request: web.BaseRequest):
     transaction_id = request.match_info["tran_id"]
     try:
         async with context.profile.session() as session:
-            transaction = await TransactionRecord.retrieve_by_id(
-                session, transaction_id
-            )
+            transaction = await TransactionRecord.retrieve_by_id(session, transaction_id)
             connection_record = await ConnRecord.retrieve_by_id(
                 session, transaction.connection_id
             )
@@ -413,6 +413,7 @@ async def refuse_transaction_response(request: web.BaseRequest):
 )
 @match_info_schema(TranIdMatchInfoSchema())
 @response_schema(TransactionRecordSchema(), 200)
+@tenant_authentication
 async def cancel_transaction(request: web.BaseRequest):
     """Request handler for cancelling a Transaction request.
 
@@ -427,9 +428,7 @@ async def cancel_transaction(request: web.BaseRequest):
     transaction_id = request.match_info["tran_id"]
     try:
         async with context.profile.session() as session:
-            transaction = await TransactionRecord.retrieve_by_id(
-                session, transaction_id
-            )
+            transaction = await TransactionRecord.retrieve_by_id(session, transaction_id)
             connection_record = await ConnRecord.retrieve_by_id(
                 session, transaction.connection_id
             )
@@ -477,6 +476,7 @@ async def cancel_transaction(request: web.BaseRequest):
 )
 @match_info_schema(TranIdMatchInfoSchema())
 @response_schema(TransactionRecordSchema(), 200)
+@tenant_authentication
 async def transaction_resend(request: web.BaseRequest):
     """Request handler for resending a transaction request.
 
@@ -491,9 +491,7 @@ async def transaction_resend(request: web.BaseRequest):
     transaction_id = request.match_info["tran_id"]
     try:
         async with context.profile.session() as session:
-            transaction = await TransactionRecord.retrieve_by_id(
-                session, transaction_id
-            )
+            transaction = await TransactionRecord.retrieve_by_id(session, transaction_id)
             connection_record = await ConnRecord.retrieve_by_id(
                 session, transaction.connection_id
             )
@@ -541,6 +539,7 @@ async def transaction_resend(request: web.BaseRequest):
 @querystring_schema(AssignTransactionJobsSchema())
 @match_info_schema(TransactionConnIdMatchInfoSchema())
 @response_schema(TransactionJobsSchema(), 200)
+@tenant_authentication
 async def set_endorser_role(request: web.BaseRequest):
     """Request handler for assigning transaction jobs.
 
@@ -581,6 +580,7 @@ async def set_endorser_role(request: web.BaseRequest):
 @querystring_schema(EndorserInfoSchema())
 @match_info_schema(TransactionConnIdMatchInfoSchema())
 @response_schema(EndorserInfoSchema(), 200)
+@tenant_authentication
 async def set_endorser_info(request: web.BaseRequest):
     """Request handler for assigning endorser information.
 
@@ -644,6 +644,7 @@ async def set_endorser_info(request: web.BaseRequest):
 )
 @match_info_schema(TranIdMatchInfoSchema())
 @response_schema(TransactionRecordSchema(), 200)
+@tenant_authentication
 async def transaction_write(request: web.BaseRequest):
     """Request handler for writing an endorsed transaction to the ledger.
 
@@ -658,9 +659,7 @@ async def transaction_write(request: web.BaseRequest):
     transaction_id = request.match_info["tran_id"]
     try:
         async with context.profile.session() as session:
-            transaction = await TransactionRecord.retrieve_by_id(
-                session, transaction_id
-            )
+            transaction = await TransactionRecord.retrieve_by_id(session, transaction_id)
     except StorageNotFoundError as err:
         raise web.HTTPNotFound(reason=err.roll_up) from err
     except BaseModelError as err:

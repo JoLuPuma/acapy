@@ -1,10 +1,10 @@
 """Base Class for DID Resolvers."""
 
+import re
+import warnings
 from abc import ABC, abstractmethod
 from enum import Enum
-import re
 from typing import NamedTuple, Optional, Pattern, Sequence, Text, Union
-import warnings
 
 from pydid import DID
 
@@ -53,8 +53,8 @@ class ResolutionResult:
         """Initialize Resolution.
 
         Args:
-            did_doc: DID Document resolved
-            resolver_metadata: Resolving details
+            did_document: DID Document resolved
+            metadata: Resolving details
         """
         self.did_document = did_document
         self.metadata = metadata
@@ -105,7 +105,7 @@ class BaseDIDResolver(ABC):
         matching on DIDs to determine if this resolver supports a given DID.
         """
         raise NotImplementedError(
-            "supported_did_regex must be overriden by subclasses of BaseResolver "
+            "supported_did_regex must be overridden by subclasses of BaseResolver "
             "to use default supports method"
         )
 
@@ -128,9 +128,7 @@ class BaseDIDResolver(ABC):
                 DeprecationWarning,
             )
 
-            supported_did_regex = re.compile(
-                "^did:(?:{}):.*$".format("|".join(methods))
-            )
+            supported_did_regex = re.compile("^did:(?:{}):.*$".format("|".join(methods)))
 
         return bool(supported_did_regex.match(did))
 

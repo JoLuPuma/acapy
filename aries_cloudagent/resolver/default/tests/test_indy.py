@@ -14,7 +14,6 @@ from ....ledger.multiple_ledger.ledger_requests_executor import (
 from ....messaging.valid import IndyDID
 from ....multitenant.base import BaseMultitenantManager
 from ....multitenant.manager import MultitenantManager
-
 from ...base import DIDNotFound, ResolverError
 from ..indy import IndyDIDResolver, _routing_keys_as_did_key_urls
 
@@ -68,9 +67,7 @@ class TestIndyResolver:
         assert await resolver.resolve(profile, TEST_DID0)
 
     @pytest.mark.asyncio
-    async def test_resolve_with_accept(
-        self, profile: Profile, resolver: IndyDIDResolver
-    ):
+    async def test_resolve_with_accept(self, profile: Profile, resolver: IndyDIDResolver):
         """Test resolve method."""
         assert await resolver.resolve(
             profile, TEST_DID0, ["didcomm/aip1", "didcomm/aip2;env=rfc19"]
@@ -93,9 +90,7 @@ class TestIndyResolver:
             assert await resolver.resolve(profile, TEST_DID0)
 
     @pytest.mark.asyncio
-    async def test_resolve_x_no_ledger(
-        self, profile: Profile, resolver: IndyDIDResolver
-    ):
+    async def test_resolve_x_no_ledger(self, profile: Profile, resolver: IndyDIDResolver):
         """Test resolve method with no ledger."""
         profile.context.injector.bind_instance(
             IndyLedgerRequestsExecutor,

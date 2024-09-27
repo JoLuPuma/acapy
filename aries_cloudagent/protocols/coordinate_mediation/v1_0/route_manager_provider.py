@@ -4,8 +4,8 @@ from ....config.base import BaseInjector, BaseProvider, BaseSettings
 from ....core.profile import Profile
 from ....multitenant.base import BaseMultitenantManager
 from ....multitenant.route_manager import (
-    MultitenantRouteManager,
     BaseWalletRouteManager,
+    MultitenantRouteManager,
 )
 from .route_manager import CoordinateMediationV1RouteManager
 
@@ -13,7 +13,7 @@ from .route_manager import CoordinateMediationV1RouteManager
 class RouteManagerProvider(BaseProvider):
     """Route manager provider.
 
-    Decides whcih route manager to use based on settings.
+    Decides which route manager to use based on settings.
     """
 
     def __init__(self, root_profile: Profile):

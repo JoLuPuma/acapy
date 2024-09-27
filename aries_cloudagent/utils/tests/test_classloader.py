@@ -1,8 +1,6 @@
-from unittest import TestCase
-from unittest import mock
+from unittest import TestCase, mock
 
 from ...core.error import BaseError
-
 from .. import classloader as test_module
 from ..classloader import ClassLoader, ClassNotFoundError, ModuleLoadError
 
@@ -31,9 +29,7 @@ class TestClassLoader(TestCase):
             )
         with mock.patch.object(test_module.sys, "modules", {}):
             assert (
-                ClassLoader.load_module(
-                    "..transport", "aries_cloudagent.config"
-                ).__name__
+                ClassLoader.load_module("..transport", "aries_cloudagent.config").__name__
                 == "aries_cloudagent.transport"
             )
 
@@ -74,13 +70,9 @@ class TestClassLoader(TestCase):
 
     def test_load_subclass_missing(self):
         with self.assertRaises(ClassNotFoundError):
-            assert ClassLoader.load_subclass_of(
-                TestCase, "aries_cloudagent.config.base"
-            )
+            assert ClassLoader.load_subclass_of(TestCase, "aries_cloudagent.config.base")
         with self.assertRaises(ClassNotFoundError):
-            assert ClassLoader.load_subclass_of(
-                TestCase, "aries_cloudagent.not-a-module"
-            )
+            assert ClassLoader.load_subclass_of(TestCase, "aries_cloudagent.not-a-module")
 
     def test_scan_packages(self):
         pkgs = ClassLoader.scan_subpackages("aries_cloudagent")

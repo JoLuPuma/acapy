@@ -6,8 +6,7 @@ from .....messaging.models.base import BaseModelError
 from .....messaging.request_context import RequestContext
 from .....messaging.responder import BaseResponder
 from .....storage.error import StorageError
-from .....utils.tracing import trace_event, get_timer
-
+from .....utils.tracing import get_timer, trace_event
 from .. import problem_report_for_record
 from ..manager import PresentationManager
 from ..messages.presentation_problem_report import ProblemReportReason
@@ -27,9 +26,7 @@ class PresentationProposalHandler(BaseHandler):
         """
         r_time = get_timer()
         profile = context.profile
-        self._logger.debug(
-            "PresentationProposalHandler called with context %s", context
-        )
+        self._logger.debug("PresentationProposalHandler called with context %s", context)
         assert isinstance(context.message, PresentationProposal)
         self._logger.info(
             "Received presentation proposal message: %s",
@@ -42,9 +39,7 @@ class PresentationProposalHandler(BaseHandler):
             )
         # If connection is present it must be ready for use
         elif not context.connection_ready:
-            raise HandlerException(
-                "Connection used for presentation proposal not ready"
-            )
+            raise HandlerException("Connection used for presentation proposal not ready")
 
         presentation_manager = PresentationManager(profile)
         presentation_exchange_record = await presentation_manager.receive_proposal(

@@ -29,7 +29,7 @@ class KeylistUpdated(BaseModel):
         recipient_key: str = None,
         action: str = None,
         result: str = None,
-        **kwargs
+        **kwargs,
     ):
         """Initialize a KeylistUpdated instance.
 
@@ -37,6 +37,7 @@ class KeylistUpdated(BaseModel):
             recipient_key: The recipient verkey of the route
             action: The requested action to perform
             result: The result of the requested action
+            kwargs: Additional key word arguments
 
         """
         super().__init__(**kwargs)

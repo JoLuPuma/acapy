@@ -262,7 +262,7 @@ class TaskQueue:
         Args:
             task: The asyncio task instance
             task_complete: An optional callback to run on completion
-            ident: A string identifer for the task
+            ident: A string identifier for the task
             timing: An optional dictionary of timing information
         """
         self.active_tasks.append(task)
@@ -337,9 +337,7 @@ class TaskQueue:
         if exc_info:
             self.total_failed += 1
             if not task_complete and not self._trace_fn:
-                LOGGER.exception(
-                    "Error running task %s", ident or "", exc_info=exc_info
-                )
+                LOGGER.exception("Error running task %s", ident or "", exc_info=exc_info)
         else:
             self.total_done += 1
         if task_complete or self._trace_fn:

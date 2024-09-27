@@ -1,9 +1,8 @@
 """Test connections base manager."""
 
+from unittest import IsolatedAsyncioTestCase
 from unittest.mock import call
 
-from aries_cloudagent.tests import mock
-from unittest import IsolatedAsyncioTestCase
 from pydid import DID, DIDDocument, DIDDocumentBuilder
 from pydid.doc.builder import ServiceBuilder
 from pydid.verification_method import (
@@ -12,6 +11,8 @@ from pydid.verification_method import (
     Ed25519VerificationKey2020,
     JsonWebKey2020,
 )
+
+from aries_cloudagent.tests import mock
 
 from ...cache.base import BaseCache
 from ...cache.in_memory import InMemoryCache
@@ -33,8 +34,8 @@ from ...protocols.coordinate_mediation.v1_0.models.mediation_record import (
     MediationRecord,
 )
 from ...protocols.coordinate_mediation.v1_0.route_manager import (
-    RouteManager,
     CoordinateMediationV1RouteManager,
+    RouteManager,
 )
 from ...protocols.discovery.v2_0.manager import V20DiscoveryMgr
 from ...resolver.default.key import KeyDIDResolver
@@ -44,7 +45,7 @@ from ...storage.error import StorageNotFoundError
 from ...transport.inbound.receipt import MessageReceipt
 from ...utils.multiformats import multibase, multicodec
 from ...wallet.base import DIDInfo
-from ...wallet.did_method import DIDMethods, SOV
+from ...wallet.did_method import SOV, DIDMethods
 from ...wallet.error import WalletNotFoundError
 from ...wallet.in_memory import InMemoryWallet
 from ...wallet.key_type import ED25519
@@ -79,6 +80,8 @@ class TestBaseConnectionManager(IsolatedAsyncioTestCase):
         self.test_target_did = "GbuDUYXaUZRfHD2jeDuQuP"
         self.test_target_verkey = "9WCgWKUaAJj3VWxxtzvvMQN3AoFxoBtBDo9ntwJnVVCC"
 
+        self.test_pthid = "test-pthid"
+
         self.responder = MockResponder()
 
         self.oob_mock = mock.MagicMock(
@@ -109,9 +112,7 @@ class TestBaseConnectionManager(IsolatedAsyncioTestCase):
         self.context = self.profile.context
 
         self.multitenant_mgr = mock.MagicMock(MultitenantManager, autospec=True)
-        self.context.injector.bind_instance(
-            BaseMultitenantManager, self.multitenant_mgr
-        )
+        self.context.injector.bind_instance(BaseMultitenantManager, self.multitenant_mgr)
 
         self.test_mediator_routing_keys = [
             "did:key:z6Mkgg342Ycpuk263R9d8Aq6MUaxPn1DDeHyGo38EefXmgDL#z6Mkgg342Ycpuk263R9d8Aq6MUaxPn1DDeHyGo38EefXmgDL"
@@ -563,9 +564,7 @@ class TestBaseConnectionManager(IsolatedAsyncioTestCase):
             vmethod = builder.verification_method.add(
                 Ed25519VerificationKey2020,
                 public_key_multibase=multibase.encode(
-                    multicodec.wrap(
-                        "ed25519-pub", b58_to_bytes(self.test_target_verkey)
-                    ),
+                    multicodec.wrap("ed25519-pub", b58_to_bytes(self.test_target_verkey)),
                     "base58btc",
                 ),
             )
@@ -967,9 +966,7 @@ class TestBaseConnectionManager(IsolatedAsyncioTestCase):
         self.manager.resolve_didcomm_services = mock.CoroutineMock(
             return_value=(doc, doc.service)
         )
-        recip, routing = await self.manager.verification_methods_for_service(
-            doc, service
-        )
+        recip, routing = await self.manager.verification_methods_for_service(doc, service)
         assert recip == [vm]
         assert routing
 
@@ -1074,7 +1071,7 @@ class TestBaseConnectionManager(IsolatedAsyncioTestCase):
             await self.manager.resolve_connection_targets(did)
         assert "not supported" in str(cm.exception)
 
-    async def test_record_did_empty(self):
+    async def test_record_keys_for_resolvable_did_empty(self):
         did = "did:sov:" + self.test_did
         service_builder = ServiceBuilder(DID(did))
         service_builder.add_didcomm(
@@ -1083,9 +1080,9 @@ class TestBaseConnectionManager(IsolatedAsyncioTestCase):
         self.manager.resolve_didcomm_services = mock.CoroutineMock(
             return_value=(DIDDocument(id=DID(did)), service_builder.services)
         )
-        await self.manager.record_did(did)
+        await self.manager.record_keys_for_resolvable_did(did)
 
-    async def test_record_did(self):
+    async def test_record_keys_for_resolvable_did(self):
         did = "did:sov:" + self.test_did
         doc_builder = DIDDocumentBuilder(did)
         vm = doc_builder.verification_method.add(
@@ -1099,7 +1096,7 @@ class TestBaseConnectionManager(IsolatedAsyncioTestCase):
         self.manager.resolve_didcomm_services = mock.CoroutineMock(
             return_value=(doc, doc.service)
         )
-        await self.manager.record_did(did)
+        await self.manager.record_keys_for_resolvable_did(did)
 
     async def test_diddoc_connection_targets_diddoc_underspecified(self):
         with self.assertRaises(BaseConnectionManagerError):
@@ -1645,7 +1642,7 @@ class TestBaseConnectionManager(IsolatedAsyncioTestCase):
             conn_rec = await self.manager.find_connection(
                 their_did=self.test_target_did,
                 my_did=self.test_did,
-                my_verkey=self.test_verkey,
+                parent_thread_id=self.test_pthid,
                 auto_complete=True,
             )
             assert ConnRecord.State.get(conn_rec.state) is ConnRecord.State.COMPLETED
@@ -1665,7 +1662,7 @@ class TestBaseConnectionManager(IsolatedAsyncioTestCase):
             conn_rec = await self.manager.find_connection(
                 their_did=self.test_target_did,
                 my_did=self.test_did,
-                my_verkey=self.test_verkey,
+                parent_thread_id=self.test_pthid,
                 auto_complete=True,
             )
             assert ConnRecord.State.get(conn_rec.state) is ConnRecord.State.COMPLETED
@@ -1675,10 +1672,10 @@ class TestBaseConnectionManager(IsolatedAsyncioTestCase):
         with mock.patch.object(
             ConnRecord, "retrieve_by_did", mock.CoroutineMock()
         ) as mock_conn_retrieve_by_did, mock.patch.object(
-            ConnRecord, "retrieve_by_invitation_key", mock.CoroutineMock()
-        ) as mock_conn_retrieve_by_invitation_key:
+            ConnRecord, "retrieve_by_invitation_msg_id", mock.CoroutineMock()
+        ) as mock_conn_retrieve_by_invitation_msg_id:
             mock_conn_retrieve_by_did.side_effect = StorageNotFoundError()
-            mock_conn_retrieve_by_invitation_key.return_value = mock.MagicMock(
+            mock_conn_retrieve_by_invitation_msg_id.return_value = mock.MagicMock(
                 state=ConnRecord.State.RESPONSE,
                 save=mock.CoroutineMock(),
             )
@@ -1686,7 +1683,7 @@ class TestBaseConnectionManager(IsolatedAsyncioTestCase):
             conn_rec = await self.manager.find_connection(
                 their_did=self.test_target_did,
                 my_did=self.test_did,
-                my_verkey=self.test_verkey,
+                parent_thread_id=self.test_pthid,
             )
             assert conn_rec
 
@@ -1695,14 +1692,14 @@ class TestBaseConnectionManager(IsolatedAsyncioTestCase):
             ConnRecord, "retrieve_by_did", mock.CoroutineMock()
         ) as mock_conn_retrieve_by_did, mock.patch.object(
             ConnRecord, "retrieve_by_invitation_key", mock.CoroutineMock()
-        ) as mock_conn_retrieve_by_invitation_key:
+        ) as mock_conn_retrieve_by_invitation_msg_id:
             mock_conn_retrieve_by_did.side_effect = StorageNotFoundError()
-            mock_conn_retrieve_by_invitation_key.side_effect = StorageNotFoundError()
+            mock_conn_retrieve_by_invitation_msg_id.return_value = None
 
             conn_rec = await self.manager.find_connection(
                 their_did=self.test_target_did,
                 my_did=self.test_did,
-                my_verkey=self.test_verkey,
+                parent_thread_id=self.test_pthid,
             )
             assert conn_rec is None
 

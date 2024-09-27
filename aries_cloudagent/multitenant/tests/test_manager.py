@@ -1,4 +1,5 @@
 from unittest import IsolatedAsyncioTestCase
+
 from aries_cloudagent.tests import mock
 
 from ...core.in_memory import InMemoryProfile
@@ -21,9 +22,7 @@ class TestMultitenantManager(IsolatedAsyncioTestCase):
         wallet_record = WalletRecord(wallet_id="test")
         self.manager._profiles.put("test", InMemoryProfile.test_profile())
 
-        with mock.patch(
-            "aries_cloudagent.config.wallet.wallet_config"
-        ) as wallet_config:
+        with mock.patch("aries_cloudagent.config.wallet.wallet_config") as wallet_config:
             profile = await self.manager.get_wallet_profile(
                 self.profile.context, wallet_record
             )
@@ -37,9 +36,7 @@ class TestMultitenantManager(IsolatedAsyncioTestCase):
             {"admin.webhook_urls": ["http://localhost:8020"]}
         )
 
-        with mock.patch(
-            "aries_cloudagent.config.wallet.wallet_config"
-        ) as wallet_config:
+        with mock.patch("aries_cloudagent.config.wallet.wallet_config") as wallet_config:
             profile = await self.manager.get_wallet_profile(
                 self.profile.context, wallet_record
             )

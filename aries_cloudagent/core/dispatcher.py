@@ -7,9 +7,9 @@ lifecycle hook callbacks storing state for message threads, etc.
 import asyncio
 import logging
 import os
-from typing import Callable, Coroutine, Optional, Tuple, Union
 import warnings
 import weakref
+from typing import Callable, Coroutine, Union
 
 from aiohttp.web import HTTPException
 
@@ -17,22 +17,23 @@ from ..connections.base_manager import BaseConnectionManager
 from ..connections.models.conn_record import ConnRecord
 from ..core.profile import Profile
 from ..messaging.agent_message import AgentMessage
-from ..messaging.base_message import BaseMessage
+from ..messaging.base_message import BaseMessage, DIDCommVersion
 from ..messaging.error import MessageParseError
 from ..messaging.models.base import BaseModelError
 from ..messaging.request_context import RequestContext
-from ..messaging.responder import BaseResponder, SKIP_ACTIVE_CONN_CHECK_MSG_TYPES
+from ..messaging.responder import SKIP_ACTIVE_CONN_CHECK_MSG_TYPES, BaseResponder
 from ..messaging.util import datetime_now
+from ..messaging.v2_agent_message import V2AgentMessage
 from ..protocols.problem_report.v1_0.message import ProblemReport
 from ..transport.inbound.message import InboundMessage
 from ..transport.outbound.message import OutboundMessage
 from ..transport.outbound.status import OutboundSendStatus
+from ..utils.classloader import DeferLoad
 from ..utils.stats import Collector
 from ..utils.task_queue import CompletedTask, PendingTask, TaskQueue
 from ..utils.tracing import get_timer, trace_event
 from .error import ProtocolMinorVersionNotSupported
 from .protocol_registry import ProtocolRegistry
-from .util import get_version_from_message_type, validate_get_response_version
 
 
 class ProblemReportParseError(MessageParseError):
@@ -108,12 +109,55 @@ class Dispatcher:
             A pending task instance resolving to the handler task
 
         """
+
+        if (
+            self.profile.settings.get("experiment.didcomm_v2")
+            and inbound_message.receipt.didcomm_version == DIDCommVersion.v2
+        ):
+            handle = self.handle_v2_message(profile, inbound_message, send_outbound)
+        else:
+            handle = self.handle_v1_message(profile, inbound_message, send_outbound)
+
         return self.put_task(
-            self.handle_message(profile, inbound_message, send_outbound),
+            handle,
             complete,
         )
 
-    async def handle_message(
+    async def handle_v2_message(
+        self,
+        profile: Profile,
+        inbound_message: InboundMessage,
+        send_outbound: Coroutine,
+    ):
+        """Handle a DIDComm V2 message."""
+
+        # send a DCV2 Problem Report here for testing, and to punt procotol handling down
+        # the road a bit
+        context = RequestContext(profile)
+        context.message_receipt = inbound_message.receipt
+        responder = DispatcherResponder(
+            context,
+            inbound_message,
+            send_outbound,
+            reply_session_id=inbound_message.session_id,
+            reply_to_verkey=inbound_message.receipt.sender_verkey,
+        )
+
+        context.injector.bind_instance(BaseResponder, responder)
+        error_result = V2AgentMessage(
+            message={
+                "type": "https://didcomm.org/report-problem/2.0/problem-report",
+                "body": {
+                    "comment": "No Handlers Found",
+                    "code": "e.p.msg.not-found",
+                },
+            }
+        )
+        if inbound_message.receipt.thread_id:
+            error_result.message["pthid"] = inbound_message.receipt.thread_id
+        await responder.send_reply(error_result)
+
+    async def handle_v1_message(
         self,
         profile: Profile,
         inbound_message: InboundMessage,
@@ -139,15 +183,11 @@ class Dispatcher:
         version_warning = None
         message = None
         try:
-            (message, warning) = await self.make_message(
-                profile, inbound_message.payload
-            )
+            message = await self.make_message(profile, inbound_message.payload)
         except ProblemReportParseError:
             pass  # avoid problem report recursion
         except MessageParseError as e:
-            self.logger.error(
-                f"Message parsing failed: {str(e)}, sending problem report"
-            )
+            self.logger.error(f"Message parsing failed: {str(e)}, sending problem report")
             error_result = ProblemReport(
                 description={
                     "en": str(e),
@@ -156,47 +196,6 @@ class Dispatcher:
             )
             if inbound_message.receipt.thread_id:
                 error_result.assign_thread_id(inbound_message.receipt.thread_id)
-        # if warning:
-        #     warning_message_type = inbound_message.payload.get("@type")
-        #     if warning == WARNING_DEGRADED_FEATURES:
-        #         self.logger.error(
-        #             f"Sending {WARNING_DEGRADED_FEATURES} problem report, "
-        #             "message type received with a minor version at or higher"
-        #             " than protocol minimum supported and current minor version "
-        #             f"for message_type {warning_message_type}"
-        #         )
-        #         version_warning = ProblemReport(
-        #             description={
-        #                 "en": (
-        #                     "message type received with a minor version at or "
-        #                     "higher than protocol minimum supported and current"
-        #                     f" minor version for message_type {warning_message_type}"
-        #                 ),
-        #                 "code": WARNING_DEGRADED_FEATURES,
-        #             }
-        #         )
-        #     elif warning == WARNING_VERSION_MISMATCH:
-        #         self.logger.error(
-        #             f"Sending {WARNING_VERSION_MISMATCH} problem report, message "
-        #             "type received with a minor version higher than current minor "
-        #             f"version for message_type {warning_message_type}"
-        #         )
-        #         version_warning = ProblemReport(
-        #             description={
-        #                 "en": (
-        #                     "message type received with a minor version higher"
-        #                     " than current minor version for message_type"
-        #                     f" {warning_message_type}"
-        #                 ),
-        #                 "code": WARNING_VERSION_MISMATCH,
-        #             }
-        #         )
-        #     elif warning == WARNING_VERSION_NOT_SUPPORTED:
-        #         raise MessageParseError(
-        #             f"Message type version not supported for {warning_message_type}"
-        #         )
-        #     if version_warning and inbound_message.receipt.thread_id:
-        #         version_warning.assign_thread_id(inbound_message.receipt.thread_id)
 
         trace_event(
             self.profile.settings,
@@ -259,9 +258,7 @@ class Dispatcher:
             perf_counter=r_time,
         )
 
-    async def make_message(
-        self, profile: Profile, parsed_msg: dict
-    ) -> Tuple[BaseMessage, Optional[str]]:
+    async def make_message(self, profile: Profile, parsed_msg: dict) -> BaseMessage:
         """Deserialize a message dict into the appropriate message instance.
 
         Given a dict describing a message, this method
@@ -286,11 +283,27 @@ class Dispatcher:
 
         if not message_type:
             raise MessageParseError("Message does not contain '@type' parameter")
-        message_type_rec_version = get_version_from_message_type(message_type)
+
+        if message_type.startswith("did:sov"):
+            warnings.warn(
+                "Received a core DIDComm protocol with the deprecated "
+                "`did:sov:BzCbsNYhMrjHiqZDTUASHg;spec` prefix. The sending party should "
+                "be notified that support for receiving such messages will be removed in "
+                "a future release. Use https://didcomm.org/ instead.",
+                DeprecationWarning,
+            )
+            self.logger.warning(
+                "Received a core DIDComm protocol with the deprecated "
+                "`did:sov:BzCbsNYhMrjHiqZDTUASHg;spec` prefix. The sending party should "
+                "be notified that support for receiving such messages will be removed in "
+                "a future release. Use https://didcomm.org/ instead.",
+            )
 
         registry: ProtocolRegistry = self.profile.inject(ProtocolRegistry)
         try:
             message_cls = registry.resolve_message_class(message_type)
+            if isinstance(message_cls, DeferLoad):
+                message_cls = message_cls.resolved
         except ProtocolMinorVersionNotSupported as e:
             raise MessageParseError(f"Problem parsing message type. {e}")
 
@@ -303,10 +316,8 @@ class Dispatcher:
             if "/problem-report" in message_type:
                 raise ProblemReportParseError("Error parsing problem report message")
             raise MessageParseError(f"Error deserializing message: {e}") from e
-        _, warning = await validate_get_response_version(
-            profile, message_type_rec_version, message_cls
-        )
-        return (instance, warning)
+
+        return instance
 
     async def complete(self, timeout: float = 0.1):
         """Wait for pending tasks to complete."""
@@ -329,6 +340,7 @@ class DispatcherResponder(BaseResponder):
             context: The request context of the incoming message
             inbound_message: The inbound message triggering this handler
             send_outbound: Async function to send outbound message
+            kwargs: Additional keyword arguments
 
         """
         super().__init__(**kwargs)
@@ -346,6 +358,10 @@ class DispatcherResponder(BaseResponder):
 
         Args:
             message: The message payload
+            kwargs: Additional keyword arguments
+
+        Returns:
+            OutboundMessage: The created outbound message.
         """
         context = self._context()
         if not context:
@@ -369,6 +385,7 @@ class DispatcherResponder(BaseResponder):
 
         Args:
             message: The `OutboundMessage` to be sent
+            kwargs: Additional keyword arguments
         """
         context = self._context()
         if not context:

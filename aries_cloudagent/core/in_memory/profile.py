@@ -32,7 +32,7 @@ class InMemoryProfile(Profile):
         *,
         context: InjectionContext = None,
         name: str = None,
-        profile_class: Any = None
+        profile_class: Any = None,
     ):
         """Create a new InMemoryProfile instance."""
         super().__init__(context=context, name=name, created=True)
@@ -97,10 +97,17 @@ class InMemoryProfile(Profile):
 
     @classmethod
     def test_session(
-        cls, settings: Mapping[str, Any] = None, bind: Mapping[Type, Any] = None
+        cls,
+        settings: Mapping[str, Any] = None,
+        bind: Mapping[Type, Any] = None,
+        profile_class: Any = None,
     ) -> "InMemoryProfileSession":
         """Used in tests to quickly create InMemoryProfileSession."""
-        session = InMemoryProfileSession(cls.test_profile(), settings=settings)
+        if profile_class is not None:
+            test_profile = cls.test_profile(profile_class=profile_class)
+        else:
+            test_profile = cls.test_profile()
+        session = InMemoryProfileSession(test_profile, settings=settings)
         session._active = True
         session._init_context()
         if bind:
@@ -120,7 +127,7 @@ class InMemoryProfileSession(ProfileSession):
         profile: Profile,
         *,
         context: InjectionContext = None,
-        settings: Mapping[str, Any] = None
+        settings: Mapping[str, Any] = None,
     ):
         """Create a new InMemoryProfileSession instance."""
         super().__init__(profile=profile, context=context, settings=settings)

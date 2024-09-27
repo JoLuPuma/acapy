@@ -1,11 +1,10 @@
 import asyncio
 import json
 
+from aiohttp import WSMsgType, web
 from aiohttp.test_utils import AioHTTPTestCase
-from aiohttp import web, WSMsgType
 
 from ....core.in_memory import InMemoryProfile
-
 from ..ws import WsTransport
 
 
@@ -48,7 +47,5 @@ class TestWsTransport(AioHTTPTestCase):
         assert self.message_results == [{}]
 
         self.message_results.clear()
-        await asyncio.wait_for(
-            send_message(transport, b"{}", endpoint=server_addr), 5.0
-        )
+        await asyncio.wait_for(send_message(transport, b"{}", endpoint=server_addr), 5.0)
         assert self.message_results == [{}]

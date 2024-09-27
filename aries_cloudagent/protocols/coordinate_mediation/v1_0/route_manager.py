@@ -3,8 +3,8 @@
 Set up routing for newly formed connections.
 """
 
-from abc import ABC, abstractmethod
 import logging
+from abc import ABC, abstractmethod
 from typing import List, NamedTuple, Optional
 
 from ....connections.models.conn_record import ConnRecord
@@ -19,11 +19,7 @@ from ...routing.v1_0.models.route_record import RouteRecord
 from .manager import MediationManager
 from .messages.keylist_update import KeylistUpdate
 from .models.mediation_record import MediationRecord
-from .normalization import (
-    normalize_from_did_key,
-    normalize_to_did_key,
-)
-
+from .normalization import normalize_from_did_key, normalize_to_did_key
 
 LOGGER = logging.getLogger(__name__)
 
@@ -33,7 +29,7 @@ class RouteManagerError(Exception):
 
 
 class RoutingInfo(NamedTuple):
-    """Routing info tuple contiaing routing keys and endpoint."""
+    """Routing info tuple containing routing keys and endpoint."""
 
     routing_keys: Optional[List[str]]
     endpoint: Optional[str]
@@ -50,7 +46,7 @@ class RouteManager(ABC):
     async def get_or_create_my_did(
         self, profile: Profile, conn_record: ConnRecord
     ) -> DIDInfo:
-        """Create or retrieve DID info for a conneciton."""
+        """Create or retrieve DID info for a connection."""
         if not conn_record.my_did:
             async with profile.session() as session:
                 wallet = session.inject(BaseWallet)
@@ -227,9 +223,16 @@ class RouteManager(ABC):
 
         raise ValueError("Expected connection to have invitation_key")
 
-    async def route_verkey(self, profile: Profile, verkey: str):
+    async def route_verkey(
+        self,
+        profile: Profile,
+        verkey: str,
+        mediation_record: Optional[MediationRecord] = None,
+    ):
         """Establish routing for a public DID."""
-        return await self._route_for_key(profile, verkey, skip_if_exists=True)
+        return await self._route_for_key(
+            profile, verkey, mediation_record, skip_if_exists=True
+        )
 
     async def route_public_did(self, profile: Profile, verkey: str):
         """Establish routing for a public DID.
@@ -332,9 +335,7 @@ class CoordinateMediationV1RouteManager(RouteManager):
             keylist_update = await mediation_mgr.remove_key(replace_key, keylist_update)
 
         responder = profile.inject(BaseResponder)
-        await responder.send(
-            keylist_update, connection_id=mediation_record.connection_id
-        )
+        await responder.send(keylist_update, connection_id=mediation_record.connection_id)
         return keylist_update
 
     async def routing_info(

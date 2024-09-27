@@ -12,13 +12,12 @@ from ...core.profile import Profile
 from ...resolver.base import BaseDIDResolver, DIDNotFound, ResolverType
 from ...storage.error import StorageNotFoundError
 
-
 LOGGER = logging.getLogger(__name__)
 
 
 # TODO Copy pasted from did-peer-4, reuse when available
 def _operate_on_embedded(
-    visitor: Callable[[dict], dict]
+    visitor: Callable[[dict], dict],
 ) -> Callable[[Union[dict, str]], Union[dict, str]]:
     """Return an adapter function that turns a vm visitor into a vm | ref visitor.
 

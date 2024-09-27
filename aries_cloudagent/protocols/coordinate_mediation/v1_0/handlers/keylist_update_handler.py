@@ -4,7 +4,6 @@ from .....messaging.base_handler import BaseHandler, HandlerException
 from .....messaging.request_context import RequestContext
 from .....messaging.responder import BaseResponder
 from .....storage.error import StorageNotFoundError
-
 from ..manager import MediationManager, MediationNotGrantedError
 from ..messages.keylist_update import KeylistUpdate
 from ..messages.problem_report import CMProblemReport, ProblemReportReason
@@ -16,9 +15,7 @@ class KeylistUpdateHandler(BaseHandler):
 
     async def handle(self, context: RequestContext, responder: BaseResponder):
         """Handle keylist-update messages."""
-        self._logger.debug(
-            "%s called with context %s", self.__class__.__name__, context
-        )
+        self._logger.debug("%s called with context %s", self.__class__.__name__, context)
         assert isinstance(context.message, KeylistUpdate)
 
         if not context.connection_ready:

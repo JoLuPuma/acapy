@@ -1,7 +1,6 @@
 """Base Indy Verifier class."""
 
 import logging
-
 from abc import ABC, ABCMeta, abstractmethod
 from enum import Enum
 from time import time
@@ -14,9 +13,7 @@ from ..ledger.multiple_ledger.ledger_requests_executor import (
 )
 from ..messaging.util import canon, encode
 from ..multitenant.base import BaseMultitenantManager
-
 from .models.xform import indy_proof_req2non_revoc_intervals
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -54,6 +51,7 @@ class IndyVerifier(ABC, metaclass=ABCMeta):
         Args:
             pres_req: presentation request
             pres: corresponding presentation
+            cred_defs: credential definitions by cred def id
 
         """
         msgs = []
@@ -118,7 +116,7 @@ class IndyVerifier(ABC, metaclass=ABCMeta):
         superfluous or missing.
 
         Args:
-            ledger: the base ledger for retrieving revocation registry definitions
+            profile: profile
             pres_req: indy proof request
             pres: indy proof request
             rev_reg_defs: rev reg defs by rev reg id, augmented with transaction times
@@ -187,9 +185,7 @@ class IndyVerifier(ABC, metaclass=ABCMeta):
                     index = revealed_attrs[uuid]["sub_proof_index"]
                     if cred_defs[index]["value"].get("revocation"):
                         timestamp = pres["identifiers"][index].get("timestamp")
-                        if (timestamp is not None) ^ bool(
-                            non_revoc_intervals.get(uuid)
-                        ):
+                        if (timestamp is not None) ^ bool(non_revoc_intervals.get(uuid)):
                             LOGGER.debug(f">>> uuid: {uuid}")
                             LOGGER.debug(
                                 f">>> revealed_attrs[uuid]: {revealed_attrs[uuid]}"
@@ -354,9 +350,7 @@ class IndyVerifier(ABC, metaclass=ABCMeta):
                         f"'{req_attr['name']}'"
                     )
                 else:
-                    raise ValueError(
-                        f"Missing requested attribute '{req_attr['name']}'"
-                    )
+                    raise ValueError(f"Missing requested attribute '{req_attr['name']}'")
             elif "names" in req_attr:
                 group_spec = revealed_groups[uuid]
                 pres_req_attr_spec = {

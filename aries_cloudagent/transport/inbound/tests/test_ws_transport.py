@@ -1,20 +1,19 @@
 import asyncio
 import json
-import pytest
 
+import pytest
 from aiohttp.test_utils import AioHTTPTestCase, unused_port
+
 from aries_cloudagent.tests import mock
 
+from ....config.injection_context import InjectionContext
 from ....core.in_memory import InMemoryProfile
-
 from ...outbound.message import OutboundMessage
 from ...wire_format import JsonWireFormat
-from ....config.injection_context import InjectionContext
-
+from .. import ws as test_module
 from ..message import InboundMessage
 from ..session import InboundSession
 from ..ws import WsTransport
-from .. import ws as test_module
 
 
 class TestWsTransport(AioHTTPTestCase):
@@ -37,7 +36,7 @@ class TestWsTransport(AioHTTPTestCase):
         client_info,
         wire_format,
         can_respond: bool = False,
-        **kwargs
+        **kwargs,
     ):
         if not self.session:
             session = InboundSession(
@@ -68,9 +67,7 @@ class TestWsTransport(AioHTTPTestCase):
             self.result_event.set()
 
     async def test_start_x(self):
-        with mock.patch.object(
-            test_module.web, "TCPSite", mock.MagicMock()
-        ) as mock_site:
+        with mock.patch.object(test_module.web, "TCPSite", mock.MagicMock()) as mock_site:
             mock_site.return_value = mock.MagicMock(
                 start=mock.CoroutineMock(side_effect=OSError())
             )

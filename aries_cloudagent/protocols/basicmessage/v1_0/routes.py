@@ -2,9 +2,9 @@
 
 from aiohttp import web
 from aiohttp_apispec import docs, match_info_schema, request_schema, response_schema
-
 from marshmallow import fields
 
+from ....admin.decorators.auth import tenant_authentication
 from ....admin.request_context import AdminRequestContext
 from ....connections.models.conn_record import ConnRecord
 from ....messaging.models.openapi import OpenAPISchema
@@ -21,9 +21,7 @@ class BasicMessageModuleResponseSchema(OpenAPISchema):
 class SendMessageSchema(OpenAPISchema):
     """Request schema for sending a message."""
 
-    content = fields.Str(
-        metadata={"description": "Message content", "example": "Hello"}
-    )
+    content = fields.Str(metadata={"description": "Message content", "example": "Hello"})
 
 
 class BasicConnIdMatchInfoSchema(OpenAPISchema):
@@ -39,6 +37,7 @@ class BasicConnIdMatchInfoSchema(OpenAPISchema):
 @match_info_schema(BasicConnIdMatchInfoSchema())
 @request_schema(SendMessageSchema())
 @response_schema(BasicMessageModuleResponseSchema(), 200, description="")
+@tenant_authentication
 async def connections_send_message(request: web.BaseRequest):
     """Request handler for sending a basic message to a connection.
 

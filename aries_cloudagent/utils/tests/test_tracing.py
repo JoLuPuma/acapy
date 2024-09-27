@@ -1,18 +1,16 @@
 import json
-import requests
-
 from unittest import IsolatedAsyncioTestCase
 
-from ...protocols.out_of_band.v1_0.messages.invitation import InvitationMessage
+import requests
+
+from ...messaging.decorators.trace_decorator import TRACE_MESSAGE_TARGET, TraceDecorator
 from ...protocols.issue_credential.v1_0.models.credential_exchange import (
     V10CredentialExchange,
 )
+from ...protocols.out_of_band.v1_0.messages.invitation import InvitationMessage
+from ...protocols.trustping.v1_0.messages.ping import Ping
 from ...transport.inbound.message import InboundMessage
 from ...transport.outbound.message import OutboundMessage
-
-from ...messaging.decorators.trace_decorator import TraceDecorator, TRACE_MESSAGE_TARGET
-from ...protocols.trustping.v1_0.messages.ping import Ping
-
 from .. import tracing as test_module
 
 
@@ -23,9 +21,7 @@ class TestTracing(IsolatedAsyncioTestCase):
         assert test_module.get_timer() > 0.0
 
     def test_tracing_enabled(self):
-        invi = InvitationMessage(
-            comment="no comment", label="cable guy", services=[TestTracing.test_did]
-        )
+        invi = InvitationMessage(label="cable guy", services=[TestTracing.test_did])
         assert not test_module.tracing_enabled({}, invi)
         invi._trace = TraceDecorator(target="message")
         assert test_module.tracing_enabled({}, invi)
@@ -71,9 +67,7 @@ class TestTracing(IsolatedAsyncioTestCase):
         assert test_module.tracing_enabled({}, outbound_message)
 
     def test_decode_inbound_message(self):
-        invi = InvitationMessage(
-            comment="no comment", label="cable guy", services=[TestTracing.test_did]
-        )
+        invi = InvitationMessage(label="cable guy", services=[TestTracing.test_did])
         message = OutboundMessage(payload=invi)
         assert invi == test_module.decode_inbound_message(message)
 

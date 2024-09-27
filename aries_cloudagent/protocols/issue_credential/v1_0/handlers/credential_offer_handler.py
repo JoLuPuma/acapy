@@ -1,6 +1,5 @@
 """Credential offer message handler."""
 
-from .....wallet.util import default_did_from_verkey
 from .....core.oob_processor import OobMessageProcessor
 from .....indy.holder import IndyHolderError
 from .....ledger.error import LedgerError
@@ -9,8 +8,8 @@ from .....messaging.models.base import BaseModelError
 from .....messaging.request_context import RequestContext
 from .....messaging.responder import BaseResponder
 from .....storage.error import StorageError
-from .....utils.tracing import trace_event, get_timer
-
+from .....utils.tracing import get_timer, trace_event
+from .....wallet.util import default_did_from_verkey
 from .. import problem_report_for_record
 from ..manager import CredentialManager, CredentialManagerError
 from ..messages.credential_offer import CredentialOffer
@@ -53,9 +52,7 @@ class CredentialOfferHandler(BaseHandler):
             )
 
         connection_id = (
-            context.connection_record.connection_id
-            if context.connection_record
-            else None
+            context.connection_record.connection_id if context.connection_record else None
         )
 
         credential_manager = CredentialManager(profile)
@@ -77,9 +74,7 @@ class CredentialOfferHandler(BaseHandler):
             holder_did = default_did_from_verkey(oob_record.our_recipient_key)
 
         # If auto respond is turned on, automatically reply with credential request
-        if cred_ex_record and context.settings.get(
-            "debug.auto_respond_credential_offer"
-        ):
+        if cred_ex_record and context.settings.get("debug.auto_respond_credential_offer"):
             credential_request_message = None
             try:
                 (

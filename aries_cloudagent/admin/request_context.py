@@ -5,10 +5,10 @@ A request context provided by the admin server to admin route handlers.
 
 from typing import Mapping, Optional, Type
 
-from ..core.profile import Profile, ProfileSession
-from ..config.injector import Injector, InjectionError, InjectType
 from ..config.injection_context import InjectionContext
+from ..config.injector import InjectionError, Injector, InjectType
 from ..config.settings import Settings
+from ..core.profile import Profile, ProfileSession
 from ..utils.classloader import DeferLoad
 
 IN_MEM = DeferLoad("aries_cloudagent.core.in_memory.InMemoryProfile")
@@ -21,13 +21,13 @@ class AdminRequestContext:
         self,
         profile: Profile,
         *,
-        context: InjectionContext = None,
-        settings: Mapping[str, object] = None,
-        root_profile: Profile = None,
-        metadata: dict = None
+        context: Optional[InjectionContext] = None,
+        settings: Optional[Mapping[str, object]] = None,
+        root_profile: Optional[Profile] = None,
+        metadata: Optional[dict] = None,
     ):
         """Initialize an instance of AdminRequestContext."""
-        self._context = (context or profile.context).start_scope("admin", settings)
+        self._context = (context or profile.context).start_scope(settings)
         self._profile = profile
         self._root_profile = root_profile
         self._metadata = metadata
@@ -72,12 +72,13 @@ class AdminRequestContext:
     def inject(
         self,
         base_cls: Type[InjectType],
-        settings: Mapping[str, object] = None,
+        settings: Optional[Mapping[str, object]] = None,
     ) -> InjectType:
         """Get the provided instance of a given class identifier.
 
         Args:
             cls: The base class to retrieve an instance of
+            base_cls: The base class to retrieve an instance of
             settings: An optional mapping providing configuration to the provider
 
         Returns:
@@ -89,7 +90,7 @@ class AdminRequestContext:
     def inject_or(
         self,
         base_cls: Type[InjectType],
-        settings: Mapping[str, object] = None,
+        settings: Optional[Mapping[str, object]] = None,
         default: Optional[InjectType] = None,
     ) -> Optional[InjectType]:
         """Get the provided instance of a given class identifier or default if not found.
@@ -111,7 +112,7 @@ class AdminRequestContext:
 
     @classmethod
     def test_context(
-        cls, session_inject: dict = None, profile: Profile = None
+        cls, session_inject: Optional[dict] = None, profile: Optional[Profile] = None
     ) -> "AdminRequestContext":
         """Quickly set up a new admin request context for tests."""
         ctx = AdminRequestContext(profile or IN_MEM.resolved.test_profile())
@@ -153,8 +154,6 @@ class AdminRequestContext:
         """
         skip = ("session",)
         items = (
-            "{}={}".format(k, repr(v))
-            for k, v in self.__dict__.items()
-            if k not in skip
+            "{}={}".format(k, repr(v)) for k, v in self.__dict__.items() if k not in skip
         )
         return "<{}({})>".format(self.__class__.__name__, ", ".join(items))

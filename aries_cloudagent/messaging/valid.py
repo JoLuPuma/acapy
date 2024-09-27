@@ -4,7 +4,6 @@ import json
 import re
 
 from base58 import alphabet
-
 from marshmallow.exceptions import ValidationError
 from marshmallow.fields import Field
 from marshmallow.validate import OneOf, Range, Regexp, Validator
@@ -779,8 +778,8 @@ class CredentialType(Validator):
 class PresentationType(Validator):
     """Presentation Type."""
 
-    PRESENTATIONL_TYPE = "VerifiablePresentation"
-    EXAMPLE = [PRESENTATIONL_TYPE]
+    PRESENTATION_TYPE = "VerifiablePresentation"
+    EXAMPLE = [PRESENTATION_TYPE]
 
     def __init__(self) -> None:
         """Initialize the instance."""
@@ -789,9 +788,9 @@ class PresentationType(Validator):
     def __call__(self, value):
         """Validate input value."""
         length = len(value)
-        if length < 1 or PresentationType.PRESENTATIONL_TYPE not in value:
+        if length < 1 or PresentationType.PRESENTATION_TYPE not in value:
             raise ValidationError(
-                f"type must include {PresentationType.PRESENTATIONL_TYPE}"
+                f"type must include {PresentationType.PRESENTATION_TYPE}"
             )
 
         return value
@@ -931,6 +930,9 @@ DID_KEY_REF_EXAMPLE = DIDKeyRef.EXAMPLE
 
 DID_POSTURE_VALIDATE = DIDPosture()
 DID_POSTURE_EXAMPLE = DIDPosture.EXAMPLE
+
+DID_WEB_VALIDATE = DIDWeb()
+DID_WEB_EXAMPLE = DIDWeb.EXAMPLE
 
 ROUTING_KEY_VALIDATE = RoutingKey()
 ROUTING_KEY_EXAMPLE = RoutingKey.EXAMPLE

@@ -1,12 +1,8 @@
-from unittest import IsolatedAsyncioTestCase
-
-from unittest import mock
-from unittest import TestCase
+from unittest import IsolatedAsyncioTestCase, TestCase, mock
 
 from .....didcomm_prefix import DIDCommPrefix
-
-from ..invitation_request import InvitationRequest
 from ...message_types import INVITATION_REQUEST, PROTOCOL_PACKAGE
+from ..invitation_request import InvitationRequest
 
 
 class TestConfig:
@@ -30,8 +26,7 @@ class TestInvitationRequest(TestCase, TestConfig):
         assert self.request._type == DIDCommPrefix.qualify_current(INVITATION_REQUEST)
 
     @mock.patch(
-        f"{PROTOCOL_PACKAGE}.messages."
-        "invitation_request.InvitationRequestSchema.load"
+        f"{PROTOCOL_PACKAGE}.messages." "invitation_request.InvitationRequestSchema.load"
     )
     def test_deserialize(self, mock_invitation_schema_load):
         """
@@ -45,8 +40,7 @@ class TestInvitationRequest(TestCase, TestConfig):
         assert request is mock_invitation_schema_load.return_value
 
     @mock.patch(
-        f"{PROTOCOL_PACKAGE}.messages."
-        "invitation_request.InvitationRequestSchema.dump"
+        f"{PROTOCOL_PACKAGE}.messages." "invitation_request.InvitationRequestSchema.dump"
     )
     def test_serialize(self, mock_invitation_schema_dump):
         """

@@ -1,9 +1,10 @@
 import json
 import tempfile
+from unittest import IsolatedAsyncioTestCase
+
 import pytest
 
 from aries_cloudagent.tests import mock
-from unittest import IsolatedAsyncioTestCase
 
 from ....askar.profile import AskarProfileManager
 from ....config.injection_context import InjectionContext
@@ -11,9 +12,7 @@ from ....ledger.base import BaseLedger
 from ....ledger.multiple_ledger.ledger_requests_executor import (
     IndyLedgerRequestsExecutor,
 )
-
-from .. import issuer, holder, verifier
-
+from .. import holder, issuer, verifier
 
 TEST_DID = "55GkHamhTU1ZbTbV2ab9DE"
 SCHEMA_NAME = "resident"
@@ -93,8 +92,7 @@ class TestIndyCredxIssuance(IsolatedAsyncioTestCase):
 
     async def test_issue_store_non_rev(self):
         assert (
-            self.issuer.make_schema_id(TEST_DID, SCHEMA_NAME, SCHEMA_VERSION)
-            == SCHEMA_ID
+            self.issuer.make_schema_id(TEST_DID, SCHEMA_NAME, SCHEMA_VERSION) == SCHEMA_ID
         )
 
         (s_id, schema_json) = await self.issuer.create_schema(
@@ -175,11 +173,7 @@ class TestIndyCredxIssuance(IsolatedAsyncioTestCase):
 
         pres_json = await self.holder.create_presentation(
             PRES_REQ_NON_REV,
-            {
-                "requested_attributes": {
-                    CRED_REFT: {"cred_id": cred_id, "revealed": True}
-                }
-            },
+            {"requested_attributes": {CRED_REFT: {"cred_id": cred_id, "revealed": True}}},
             {s_id: schema},
             {cd_id: cred_def},
             rev_states=None,
@@ -194,8 +188,7 @@ class TestIndyCredxIssuance(IsolatedAsyncioTestCase):
 
     async def test_issue_store_rev(self):
         assert (
-            self.issuer.make_schema_id(TEST_DID, SCHEMA_NAME, SCHEMA_VERSION)
-            == SCHEMA_ID
+            self.issuer.make_schema_id(TEST_DID, SCHEMA_NAME, SCHEMA_VERSION) == SCHEMA_ID
         )
 
         (s_id, schema_json) = await self.issuer.create_schema(

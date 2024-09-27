@@ -33,10 +33,26 @@ aries\_cloudagent.utils.dependencies module
    :undoc-members:
    :show-inheritance:
 
+aries\_cloudagent.utils.endorsement\_setup module
+-------------------------------------------------
+
+.. automodule:: aries_cloudagent.utils.endorsement_setup
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 aries\_cloudagent.utils.env module
 ----------------------------------
 
 .. automodule:: aries_cloudagent.utils.env
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+aries\_cloudagent.utils.general module
+--------------------------------------
+
+.. automodule:: aries_cloudagent.utils.general
    :members:
    :undoc-members:
    :show-inheritance:
@@ -69,6 +85,14 @@ aries\_cloudagent.utils.outofband module
 ----------------------------------------
 
 .. automodule:: aries_cloudagent.utils.outofband
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+aries\_cloudagent.utils.profiles module
+---------------------------------------
+
+.. automodule:: aries_cloudagent.utils.profiles
    :members:
    :undoc-members:
    :show-inheritance:

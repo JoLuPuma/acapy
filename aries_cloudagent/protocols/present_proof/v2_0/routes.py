@@ -11,12 +11,12 @@ from aiohttp_apispec import (
     request_schema,
     response_schema,
 )
-
 from marshmallow import ValidationError, fields, validate, validates_schema
 
+from ....admin.decorators.auth import tenant_authentication
 from ....admin.request_context import AdminRequestContext
-from ....connections.models.conn_record import ConnRecord
 from ....anoncreds.holder import AnonCredsHolder, AnonCredsHolderError
+from ....connections.models.conn_record import ConnRecord
 from ....indy.holder import IndyHolder, IndyHolderError
 from ....indy.models.cred_precis import IndyCredPrecisSchema
 from ....indy.models.proof import IndyPresSpecSchema
@@ -26,6 +26,7 @@ from ....ledger.error import LedgerError
 from ....messaging.decorators.attach_decorator import AttachDecorator
 from ....messaging.models.base import BaseModelError
 from ....messaging.models.openapi import OpenAPISchema
+from ....messaging.models.paginated_query import PaginatedQuerySchema, get_limit_offset
 from ....messaging.valid import (
     INDY_EXTRA_WQL_EXAMPLE,
     INDY_EXTRA_WQL_VALIDATE,
@@ -70,7 +71,7 @@ class V20PresentProofModuleResponseSchema(OpenAPISchema):
     """Response schema for Present Proof Module."""
 
 
-class V20PresExRecordListQueryStringSchema(OpenAPISchema):
+class V20PresExRecordListQueryStringSchema(PaginatedQuerySchema):
     """Parameters and validators for presentation exchange list query."""
 
     connection_id = fields.Str(
@@ -134,6 +135,7 @@ class V20PresProposalByFormatSchema(OpenAPISchema):
 
         Args:
             data: The data to validate
+            kwargs: Additional keyword arguments
 
         Raises:
             ValidationError: if data has no formats
@@ -157,9 +159,7 @@ class V20PresProposalRequestSchema(AdminAPIMessageTracingSchema):
         allow_none=True,
         metadata={"description": "Human-readable comment"},
     )
-    presentation_proposal = fields.Nested(
-        V20PresProposalByFormatSchema(), required=True
-    )
+    presentation_proposal = fields.Nested(V20PresProposalByFormatSchema(), required=True)
     auto_present = fields.Boolean(
         required=False,
         dump_default=False,
@@ -209,6 +209,7 @@ class V20PresRequestByFormatSchema(OpenAPISchema):
 
         Args:
             data: The data to validate
+            kwargs: Additional keyword arguments
 
         Raises:
             ValidationError: if data has no formats
@@ -303,7 +304,7 @@ class V20PresSpecByFormatRequestSchema(AdminAPIMessageTracingSchema):
         metadata={
             "description": (
                 "Optional Presentation specification for DIF, overrides the"
-                " PresentionExchange record's PresRequest"
+                " PresentationExchange record's PresRequest"
             )
         },
     )
@@ -324,6 +325,7 @@ class V20PresSpecByFormatRequestSchema(AdminAPIMessageTracingSchema):
 
         Args:
             data: The data to validate
+            kwargs: Additional keyword arguments
 
         Raises:
             ValidationError: if data does not have exactly one format.
@@ -405,9 +407,7 @@ def _formats_attach(by_format: Mapping, msg_type: str, spec: str) -> Mapping:
     attach = []
     for fmt_api, item_by_fmt in by_format.items():
         if fmt_api == V20PresFormat.Format.INDY.api:
-            attach.append(
-                AttachDecorator.data_base64(mapping=item_by_fmt, ident=fmt_api)
-            )
+            attach.append(AttachDecorator.data_base64(mapping=item_by_fmt, ident=fmt_api))
         elif fmt_api == V20PresFormat.Format.DIF.api:
             attach.append(AttachDecorator.data_json(mapping=item_by_fmt, ident=fmt_api))
     return {
@@ -425,6 +425,7 @@ def _formats_attach(by_format: Mapping, msg_type: str, spec: str) -> Mapping:
 @docs(tags=["present-proof v2.0"], summary="Fetch all present-proof exchange records")
 @querystring_schema(V20PresExRecordListQueryStringSchema)
 @response_schema(V20PresExRecordListSchema(), 200, description="")
+@tenant_authentication
 async def present_proof_list(request: web.BaseRequest):
     """Request handler for searching presentation exchange records.
 
@@ -447,11 +448,15 @@ async def present_proof_list(request: web.BaseRequest):
         if request.query.get(k, "") != ""
     }
 
+    limit, offset = get_limit_offset(request)
+
     try:
         async with profile.session() as session:
             records = await V20PresExRecord.query(
                 session=session,
                 tag_filter=tag_filter,
+                limit=limit,
+                offset=offset,
                 post_filter_positive=post_filter,
             )
         results = [record.serialize() for record in records]
@@ -467,6 +472,7 @@ async def present_proof_list(request: web.BaseRequest):
 )
 @match_info_schema(V20PresExIdMatchInfoSchema())
 @response_schema(V20PresExRecordSchema(), 200, description="")
+@tenant_authentication
 async def present_proof_retrieve(request: web.BaseRequest):
     """Request handler for fetching a single presentation exchange record.
 
@@ -513,6 +519,7 @@ async def present_proof_retrieve(request: web.BaseRequest):
 @match_info_schema(V20PresExIdMatchInfoSchema())
 @querystring_schema(V20CredentialsFetchQueryStringSchema())
 @response_schema(IndyCredPrecisSchema(many=True), 200, description="")
+@tenant_authentication
 async def present_proof_credentials_list(request: web.BaseRequest):
     """Request handler for searching applicable credential records.
 
@@ -569,6 +576,7 @@ async def present_proof_credentials_list(request: web.BaseRequest):
                     extra_query,
                 )
             )
+
     except (IndyHolderError, AnonCredsHolderError) as err:
         if pres_ex_record:
             async with profile.session() as session:
@@ -593,9 +601,7 @@ async def present_proof_credentials_list(request: web.BaseRequest):
             input_descriptors_list = dif_pres_request.get(
                 "presentation_definition", {}
             ).get("input_descriptors")
-            claim_fmt = dif_pres_request.get("presentation_definition", {}).get(
-                "format"
-            )
+            claim_fmt = dif_pres_request.get("presentation_definition", {}).get("format")
             if claim_fmt and len(claim_fmt.keys()) > 0:
                 claim_fmt = ClaimFormat.deserialize(claim_fmt)
             input_descriptors = []
@@ -647,16 +653,13 @@ async def present_proof_credentials_list(request: web.BaseRequest):
                             elif (
                                 len(proof_types) == 1
                                 and (
-                                    BbsBlsSignature2020.signature_type
-                                    not in proof_types
+                                    BbsBlsSignature2020.signature_type not in proof_types
                                 )
                                 and (
-                                    Ed25519Signature2018.signature_type
-                                    not in proof_types
+                                    Ed25519Signature2018.signature_type not in proof_types
                                 )
                                 and (
-                                    Ed25519Signature2020.signature_type
-                                    not in proof_types
+                                    Ed25519Signature2020.signature_type not in proof_types
                                 )
                             ):
                                 raise web.HTTPBadRequest(
@@ -670,16 +673,13 @@ async def present_proof_credentials_list(request: web.BaseRequest):
                             elif (
                                 len(proof_types) >= 2
                                 and (
-                                    BbsBlsSignature2020.signature_type
-                                    not in proof_types
+                                    BbsBlsSignature2020.signature_type not in proof_types
                                 )
                                 and (
-                                    Ed25519Signature2018.signature_type
-                                    not in proof_types
+                                    Ed25519Signature2018.signature_type not in proof_types
                                 )
                                 and (
-                                    Ed25519Signature2020.signature_type
-                                    not in proof_types
+                                    Ed25519Signature2020.signature_type not in proof_types
                                 )
                             ):
                                 raise web.HTTPBadRequest(
@@ -695,26 +695,28 @@ async def present_proof_credentials_list(request: web.BaseRequest):
                                         proof_format
                                         == Ed25519Signature2018.signature_type
                                     ):
-                                        proof_type = [
-                                            Ed25519Signature2018.signature_type
-                                        ]
+                                        proof_type = [Ed25519Signature2018.signature_type]
                                         break
                                     elif (
                                         proof_format
                                         == Ed25519Signature2020.signature_type
                                     ):
-                                        proof_type = [
-                                            Ed25519Signature2020.signature_type
-                                        ]
+                                        proof_type = [Ed25519Signature2020.signature_type]
                                         break
                                     elif (
-                                        proof_format
-                                        == BbsBlsSignature2020.signature_type
+                                        proof_format == BbsBlsSignature2020.signature_type
                                     ):
-                                        proof_type = [
-                                            BbsBlsSignature2020.signature_type
-                                        ]
+                                        proof_type = [BbsBlsSignature2020.signature_type]
                                         break
+                    elif claim_fmt.di_vc:
+                        if "proof_type" in claim_fmt.di_vc:
+                            proof_types = claim_fmt.di_vc.get("proof_type")
+
+                            proof_type = [
+                                "DataIntegrityProof"
+                            ]  # [LinkedDataProof.signature_type]
+
+                        # TODO check acceptable proof type(s) ("anoncreds-2023")
                     else:
                         raise web.HTTPBadRequest(
                             reason=(
@@ -802,6 +804,7 @@ async def retrieve_uri_list_from_schema_filter(
 @docs(tags=["present-proof v2.0"], summary="Sends a presentation proposal")
 @request_schema(V20PresProposalRequestSchema())
 @response_schema(V20PresExRecordSchema(), 200, description="")
+@tenant_authentication
 async def present_proof_send_proposal(request: web.BaseRequest):
     """Request handler for sending a presentation proposal.
 
@@ -884,6 +887,7 @@ async def present_proof_send_proposal(request: web.BaseRequest):
 )
 @request_schema(V20PresCreateRequestRequestSchema())
 @response_schema(V20PresExRecordSchema(), 200, description="")
+@tenant_authentication
 async def present_proof_create_request(request: web.BaseRequest):
     """Request handler for creating a free presentation request.
 
@@ -960,6 +964,7 @@ async def present_proof_create_request(request: web.BaseRequest):
 )
 @request_schema(V20PresSendRequestRequestSchema())
 @response_schema(V20PresExRecordSchema(), 200, description="")
+@tenant_authentication
 async def present_proof_send_free_request(request: web.BaseRequest):
     """Request handler for sending a presentation request free from any proposal.
 
@@ -1043,6 +1048,7 @@ async def present_proof_send_free_request(request: web.BaseRequest):
 @match_info_schema(V20PresExIdMatchInfoSchema())
 @request_schema(V20PresentationSendRequestToProposalSchema())
 @response_schema(V20PresExRecordSchema(), 200, description="")
+@tenant_authentication
 async def present_proof_send_bound_request(request: web.BaseRequest):
     """Request handler for sending a presentation request bound to a proposal.
 
@@ -1133,6 +1139,7 @@ async def present_proof_send_bound_request(request: web.BaseRequest):
 @match_info_schema(V20PresExIdMatchInfoSchema())
 @request_schema(V20PresSpecByFormatRequestSchema())
 @response_schema(V20PresExRecordSchema(), description="")
+@tenant_authentication
 async def present_proof_send_presentation(request: web.BaseRequest):
     """Request handler for sending a presentation.
 
@@ -1246,6 +1253,7 @@ async def present_proof_send_presentation(request: web.BaseRequest):
 @docs(tags=["present-proof v2.0"], summary="Verify a received presentation")
 @match_info_schema(V20PresExIdMatchInfoSchema())
 @response_schema(V20PresExRecordSchema(), description="")
+@tenant_authentication
 async def present_proof_verify_presentation(request: web.BaseRequest):
     """Request handler for verifying a presentation request.
 
@@ -1314,6 +1322,7 @@ async def present_proof_verify_presentation(request: web.BaseRequest):
 @match_info_schema(V20PresExIdMatchInfoSchema())
 @request_schema(V20PresProblemReportRequestSchema())
 @response_schema(V20PresentProofModuleResponseSchema(), 200, description="")
+@tenant_authentication
 async def present_proof_problem_report(request: web.BaseRequest):
     """Request handler for sending problem report.
 
@@ -1352,6 +1361,7 @@ async def present_proof_problem_report(request: web.BaseRequest):
 )
 @match_info_schema(V20PresExIdMatchInfoSchema())
 @response_schema(V20PresentProofModuleResponseSchema(), description="")
+@tenant_authentication
 async def present_proof_remove(request: web.BaseRequest):
     """Request handler for removing a presentation exchange record.
 
@@ -1366,9 +1376,7 @@ async def present_proof_remove(request: web.BaseRequest):
     try:
         async with context.profile.session() as session:
             try:
-                pres_ex_record = await V20PresExRecord.retrieve_by_id(
-                    session, pres_ex_id
-                )
+                pres_ex_record = await V20PresExRecord.retrieve_by_id(session, pres_ex_id)
                 await pres_ex_record.delete_record(session)
             except (BaseModelError, ValidationError):
                 storage = session.inject(BaseStorage)

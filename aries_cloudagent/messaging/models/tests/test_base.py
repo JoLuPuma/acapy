@@ -1,7 +1,6 @@
-from unittest import mock
-from unittest import IsolatedAsyncioTestCase
+from unittest import IsolatedAsyncioTestCase, mock
 
-from marshmallow import EXCLUDE, INCLUDE, fields, validates_schema, ValidationError
+from marshmallow import EXCLUDE, INCLUDE, ValidationError, fields, validates_schema
 
 from ..base import BaseModel, BaseModelError, BaseModelSchema
 
@@ -103,9 +102,7 @@ class TestBase(IsolatedAsyncioTestCase):
         model = model.validate()
         assert model.attr == "succeeds"
 
-        model = ModelImplWithUnknown.deserialize(
-            {"attr": "succeeds", "another": "value"}
-        )
+        model = ModelImplWithUnknown.deserialize({"attr": "succeeds", "another": "value"})
         assert model.extra
         assert model.extra["another"] == "value"
         assert model.attr == "succeeds"

@@ -2,10 +2,8 @@ import pytest
 
 from ....core.in_memory import InMemoryProfile
 from ...error import StorageDuplicateError, StorageNotFoundError
-
 from ..base import VCHolder
 from ..vc_record import VCRecord
-
 
 VC_CONTEXT = "https://www.w3.org/2018/credentials/v1"
 VC_TYPE = "https://www.w3.org/2018/credentials#VerifiableCredential"
@@ -286,9 +284,7 @@ class TestInMemoryVCHolder:
         assert rows == expected
 
     @pytest.mark.asyncio
-    async def test_tag_query_valid_and_operator(
-        self, holder: VCHolder, record: VCRecord
-    ):
+    async def test_tag_query_valid_and_operator(self, holder: VCHolder, record: VCRecord):
         test_uri_list = [
             "https://www.w3.org/2018/credentials#VerifiableCredential",
             "https://example.org/examples#UniversityDegreeCredential2",

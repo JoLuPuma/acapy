@@ -37,9 +37,6 @@ class CredDefFinishedEvent(Event):
 
         Args:
             payload: CredDefFinishedPayload
-
-        TODO: update this docstring - Anoncreds-break.
-
         """
         self._topic = CRED_DEF_FINISHED_EVENT
         self._payload = payload
@@ -82,9 +79,6 @@ class RevRegDefFinishedEvent(Event):
 
         Args:
             payload: RevRegDefFinishedPayload
-
-        TODO: update this docstring - Anoncreds-break.
-
         """
         self._topic = REV_REG_DEF_FINISHED_EVENT
         self._payload = payload
@@ -109,7 +103,8 @@ class RevRegDefFinishedEvent(Event):
 class RevListFinishedPayload(NamedTuple):
     """Payload of rev list finished event."""
 
-    rev_reg_def_id: str
+    rev_reg_id: str
+    revoked: list
     options: dict
 
 
@@ -121,9 +116,6 @@ class RevListFinishedEvent(Event):
 
         Args:
             payload: RevListFinishedPayload
-
-        TODO: update this docstring - Anoncreds-break.
-
         """
         self._topic = REV_LIST_FINISHED_EVENT
         self._payload = payload
@@ -131,11 +123,12 @@ class RevListFinishedEvent(Event):
     @classmethod
     def with_payload(
         cls,
-        rev_reg_def_id: str,
+        rev_reg_id: str,
+        revoked: list,
         options: Optional[dict] = None,
     ):
         """With payload."""
-        payload = RevListFinishedPayload(rev_reg_def_id, options)
+        payload = RevListFinishedPayload(rev_reg_id, revoked, options)
         return cls(payload)
 
     @property

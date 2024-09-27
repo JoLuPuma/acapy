@@ -1,10 +1,12 @@
 from copy import deepcopy
 from unittest import IsolatedAsyncioTestCase
-from aries_cloudagent.tests import mock
+
 from marshmallow import ValidationError
 from pyld import jsonld
 
-from .. import handler as test_module
+from aries_cloudagent.tests import mock
+from aries_cloudagent.vc.vc_di.manager import VcDiManager
+
 from .......core.in_memory import InMemoryProfile
 from .......messaging.decorators.attach_decorator import AttachDecorator
 from .......messaging.responder import BaseResponder, MockResponder
@@ -34,6 +36,7 @@ from ....messages.pres_proposal import V20PresProposal
 from ....messages.pres_request import V20PresRequest
 from ....models.pres_exchange import V20PresExRecord
 from ...handler import V20PresFormatHandlerError
+from .. import handler as test_module
 from ..handler import DIFPresFormatHandler
 
 TEST_DID_SOV = "did:sov:LjgpST2rjsoxYegQDRm7EL"
@@ -420,9 +423,7 @@ class TestDIFFormatHandler(IsolatedAsyncioTestCase):
                     ],
                 )
             ],
-            proposals_attach=[
-                AttachDecorator.data_json(dif_proposal_dict, ident="dif")
-            ],
+            proposals_attach=[AttachDecorator.data_json(dif_proposal_dict, ident="dif")],
         )
         record = V20PresExRecord(
             pres_ex_id="pxid",
@@ -476,9 +477,7 @@ class TestDIFFormatHandler(IsolatedAsyncioTestCase):
                     ],
                 )
             ],
-            proposals_attach=[
-                AttachDecorator.data_json(dif_proposal_dict, ident="dif")
-            ],
+            proposals_attach=[AttachDecorator.data_json(dif_proposal_dict, ident="dif")],
         )
         record = V20PresExRecord(
             pres_ex_id="pxid",
@@ -532,9 +531,7 @@ class TestDIFFormatHandler(IsolatedAsyncioTestCase):
                     ],
                 )
             ],
-            proposals_attach=[
-                AttachDecorator.data_json(dif_proposal_dict, ident="dif")
-            ],
+            proposals_attach=[AttachDecorator.data_json(dif_proposal_dict, ident="dif")],
         )
         record = V20PresExRecord(
             pres_ex_id="pxid",
@@ -1502,8 +1499,8 @@ class TestDIFFormatHandler(IsolatedAsyncioTestCase):
                 SchemaInputDescriptor(uri="test321", required=True),
             ]
         ]
-        test_one_of_uri_groups = (
-            await self.handler.retrieve_uri_list_from_schema_filter(test_schema_filter)
+        test_one_of_uri_groups = await self.handler.retrieve_uri_list_from_schema_filter(
+            test_schema_filter
         )
         assert test_one_of_uri_groups == [["test123", "test321"]]
 
@@ -1765,9 +1762,7 @@ class TestDIFFormatHandler(IsolatedAsyncioTestCase):
             ],
         )
         pres_request = deepcopy(DIF_PRES_REQUEST_B)
-        pres_request["presentation_definition"]["input_descriptors"][0][
-            "constraints"
-        ] = {
+        pres_request["presentation_definition"]["input_descriptors"][0]["constraints"] = {
             "limit_disclosure": "required",
             "fields": [
                 {
@@ -1815,9 +1810,7 @@ class TestDIFFormatHandler(IsolatedAsyncioTestCase):
             auto_present=True,
             error_msg="error",
         )
-        with mock.patch.object(
-            jsonld, "expand", mock.MagicMock()
-        ) as mock_jsonld_expand:
+        with mock.patch.object(jsonld, "expand", mock.MagicMock()) as mock_jsonld_expand:
             mock_jsonld_expand.return_value = EXPANDED_CRED_FHIR_TYPE_2
             await self.handler.receive_pres(message=dif_pres, pres_ex_record=record)
 
@@ -1852,9 +1845,7 @@ class TestDIFFormatHandler(IsolatedAsyncioTestCase):
             ],
         )
         pres_request = deepcopy(DIF_PRES_REQUEST_B)
-        pres_request["presentation_definition"]["input_descriptors"][0][
-            "constraints"
-        ] = {
+        pres_request["presentation_definition"]["input_descriptors"][0]["constraints"] = {
             "limit_disclosure": "required",
             "fields": [
                 {
@@ -1894,17 +1885,15 @@ class TestDIFFormatHandler(IsolatedAsyncioTestCase):
             auto_present=True,
             error_msg="error",
         )
-        with mock.patch.object(
-            jsonld, "expand", mock.MagicMock()
-        ) as mock_jsonld_expand:
+        with mock.patch.object(jsonld, "expand", mock.MagicMock()) as mock_jsonld_expand:
             mock_jsonld_expand.return_value = EXPANDED_CRED_FHIR_TYPE_1
             await self.handler.receive_pres(message=dif_pres, pres_ex_record=record)
 
     async def test_verify_received_pres_invalid_jsonpath(self):
         dif_proof = deepcopy(DIF_PRES)
-        dif_proof["presentation_submission"]["descriptor_map"][0][
-            "path"
-        ] = "$.verifiableCredential[1]"
+        dif_proof["presentation_submission"]["descriptor_map"][0]["path"] = (
+            "$.verifiableCredential[1]"
+        )
         dif_pres = V20Pres(
             formats=[
                 V20PresFormat(
@@ -2205,9 +2194,7 @@ class TestDIFFormatHandler(IsolatedAsyncioTestCase):
             ],
         )
         pres_request = deepcopy(DIF_PRES_REQUEST_B)
-        pres_request["presentation_definition"]["input_descriptors"][0][
-            "constraints"
-        ] = {
+        pres_request["presentation_definition"]["input_descriptors"][0]["constraints"] = {
             "limit_disclosure": "required",
             "fields": [
                 {
@@ -2348,3 +2335,18 @@ class TestDIFFormatHandler(IsolatedAsyncioTestCase):
         ) as mock_create_vp:
             mock_create_vp.side_effect = DIFPresExchError("TEST")
             await self.handler.create_pres(record)
+
+    def test_get_type_manager_options(self):
+        profile = InMemoryProfile.test_profile()
+        handler = DIFPresFormatHandler(profile)
+        dif_proof = {"proof": {"type": "DataIntegrityProof"}}
+        pres_request = {"options": {"challenge": "3fa85f64-5717-4562-b3fc-2c963f66afa7"}}
+        manager, options = handler._get_type_manager_options(dif_proof, pres_request)
+        assert isinstance(manager, VcDiManager)
+        assert options == pres_request
+
+        dif_proof = {"proof": {"type": "LDPProof"}}
+        pres_request = {"options": {"challenge": "3fa85f64-5717-4562-b3fc-2c963f66afa7"}}
+        manager, options = handler._get_type_manager_options(dif_proof, pres_request)
+        assert isinstance(manager, VcLdpManager)
+        assert options.challenge == "3fa85f64-5717-4562-b3fc-2c963f66afa7"

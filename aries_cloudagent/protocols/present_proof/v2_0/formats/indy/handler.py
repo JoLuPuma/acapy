@@ -2,9 +2,9 @@
 
 import json
 import logging
+from typing import Mapping, Tuple
 
 from marshmallow import RAISE
-from typing import Mapping, Tuple
 
 from ......core.profile import Profile
 from ......indy.holder import IndyHolder
@@ -16,19 +16,16 @@ from ......indy.util import generate_pr_nonce
 from ......indy.verifier import IndyVerifier
 from ......messaging.decorators.attach_decorator import AttachDecorator
 from ......messaging.util import canon
-
 from ....indy.pres_exch_handler import IndyPresExchHandler
-
 from ...message_types import (
     ATTACHMENT_FORMAT,
-    PRES_20_REQUEST,
     PRES_20,
     PRES_20_PROPOSAL,
+    PRES_20_REQUEST,
 )
 from ...messages.pres import V20Pres
 from ...messages.pres_format import V20PresFormat
 from ...models.pres_exchange import V20PresExRecord
-
 from ..anoncreds.handler import AnonCredsPresExchangeHandler
 from ..handler import V20PresFormatHandler, V20PresFormatHandlerError
 
@@ -63,7 +60,7 @@ class IndyPresExchangeHandler(V20PresFormatHandler):
             message_type (str): The message type to validate the attachment data for.
                 Should be one of the message types as defined in message_types.py
             attachment_data (Mapping): [description]
-                The attachment data to valide
+                The attachment data to validate
 
         Raises:
             Exception: When the data is not valid.
@@ -159,9 +156,7 @@ class IndyPresExchangeHandler(V20PresFormatHandler):
         """Create a presentation."""
         # Temporary shim while the new anoncreds library integration is in progress
         if self.anoncreds_handler:
-            return await self.anoncreds_handler.create_pres(
-                pres_ex_record, request_data
-            )
+            return await self.anoncreds_handler.create_pres(pres_ex_record, request_data)
 
         requested_credentials = {}
         if not request_data:
@@ -170,12 +165,10 @@ class IndyPresExchangeHandler(V20PresFormatHandler):
                 indy_proof_request = proof_request.attachment(
                     IndyPresExchangeHandler.format
                 )
-                requested_credentials = (
-                    await indy_proof_req_preview2indy_requested_creds(
-                        indy_proof_request,
-                        preview=None,
-                        holder=self._profile.inject(IndyHolder),
-                    )
+                requested_credentials = await indy_proof_req_preview2indy_requested_creds(
+                    indy_proof_request,
+                    preview=None,
+                    holder=self._profile.inject(IndyHolder),
                 )
             except ValueError as err:
                 LOGGER.warning(f"{err}")

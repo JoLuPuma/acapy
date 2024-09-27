@@ -1,13 +1,8 @@
-from unittest import mock
-from unittest import TestCase
-
-from unittest import IsolatedAsyncioTestCase
+from unittest import IsolatedAsyncioTestCase, TestCase, mock
 
 from .....connections.v1_0.messages.connection_invitation import ConnectionInvitation
 from .....didcomm_prefix import DIDCommPrefix
-
 from ...message_types import FORWARD_INVITATION, PROTOCOL_PACKAGE
-
 from ..forward_invitation import ForwardInvitation
 
 
@@ -36,13 +31,10 @@ class TestForwardInvitation(TestCase, TestConfig):
 
     def test_type(self):
         """Test type."""
-        assert self.invitation._type == DIDCommPrefix.qualify_current(
-            FORWARD_INVITATION
-        )
+        assert self.invitation._type == DIDCommPrefix.qualify_current(FORWARD_INVITATION)
 
     @mock.patch(
-        f"{PROTOCOL_PACKAGE}.messages."
-        "forward_invitation.ForwardInvitationSchema.load"
+        f"{PROTOCOL_PACKAGE}.messages." "forward_invitation.ForwardInvitationSchema.load"
     )
     def test_deserialize(self, mock_invitation_schema_load):
         """
@@ -56,8 +48,7 @@ class TestForwardInvitation(TestCase, TestConfig):
         assert invitation is mock_invitation_schema_load.return_value
 
     @mock.patch(
-        f"{PROTOCOL_PACKAGE}.messages."
-        "forward_invitation.ForwardInvitationSchema.dump"
+        f"{PROTOCOL_PACKAGE}.messages." "forward_invitation.ForwardInvitationSchema.dump"
     )
     def test_serialize(self, mock_invitation_schema_dump):
         """

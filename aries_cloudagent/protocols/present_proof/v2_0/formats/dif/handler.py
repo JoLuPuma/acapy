@@ -3,9 +3,8 @@
 import json
 import logging
 from typing import Mapping, Optional, Sequence, Tuple
-from uuid import uuid4
 
-from marshmallow import RAISE
+from uuid_utils import uuid4
 
 from ......messaging.base_handler import BaseResponder
 from ......messaging.decorators.attach_decorator import AttachDecorator
@@ -17,6 +16,7 @@ from ......vc.ld_proofs import (
     Ed25519Signature2018,
     Ed25519Signature2020,
 )
+from ......vc.vc_di.manager import VcDiManager
 from ......vc.vc_ld.manager import VcLdpManager
 from ......vc.vc_ld.models.options import LDProofVCOptions
 from ......vc.vc_ld.models.presentation import VerifiablePresentation
@@ -59,7 +59,7 @@ class DIFPresFormatHandler(V20PresFormatHandler):
             message_type (str): The message type to validate the attachment data for.
                 Should be one of the message types as defined in message_types.py
             attachment_data (Mapping): [description]
-                The attachment data to valide
+                The attachment data to validate
 
         Raises:
             Exception: When the data is not valid.
@@ -75,7 +75,7 @@ class DIFPresFormatHandler(V20PresFormatHandler):
         Schema = mapping[message_type]
 
         # Validate, throw if not valid
-        Schema(unknown=RAISE).load(attachment_data)
+        Schema().load(attachment_data)
 
     def get_format_identifier(self, message_type: str) -> str:
         """Get attachment format identifier for format and message combination.
@@ -110,15 +110,16 @@ class DIFPresFormatHandler(V20PresFormatHandler):
         """Create a presentation request bound to a proposal.
 
         Args:
-            pres_ex_record: Presentation exchange record for which
+            pres_ex_record (V20PresExRecord): Presentation exchange record for which
                 to create presentation request
-            name: name to use in presentation request (None for default)
-            version: version to use in presentation request (None for default)
-            nonce: nonce to use in presentation request (None to generate)
-            comment: Optional human-readable comment pertaining to request creation
+            request_data (dict, optional): Additional data to include in the request
 
         Returns:
-            A tuple (updated presentation exchange record, presentation request message)
+            Tuple[V20PresFormat, AttachDecorator]: A tuple containing the updated
+                presentation exchange record and the presentation request message
+
+        Raises:
+            SomeException: Description of the exception raised, if any
 
         """
         dif_proof_request = {}
@@ -146,6 +147,7 @@ class DIFPresFormatHandler(V20PresFormatHandler):
         proof_request = pres_ex_record.pres_request.attachment(
             DIFPresFormatHandler.format
         )
+
         pres_definition = None
         limit_record_ids = None
         reveal_doc_frame = None
@@ -169,7 +171,6 @@ class DIFPresFormatHandler(V20PresFormatHandler):
             domain = proof_request["options"].get("domain")
         if not challenge:
             challenge = str(uuid4())
-
         input_descriptors = pres_definition.input_descriptors
         claim_fmt = pres_definition.fmt
         dif_handler_proof_type = None
@@ -223,16 +224,13 @@ class DIFPresFormatHandler(V20PresFormatHandler):
                             elif (
                                 len(proof_types) == 1
                                 and (
-                                    BbsBlsSignature2020.signature_type
-                                    not in proof_types
+                                    BbsBlsSignature2020.signature_type not in proof_types
                                 )
                                 and (
-                                    Ed25519Signature2018.signature_type
-                                    not in proof_types
+                                    Ed25519Signature2018.signature_type not in proof_types
                                 )
                                 and (
-                                    Ed25519Signature2020.signature_type
-                                    not in proof_types
+                                    Ed25519Signature2020.signature_type not in proof_types
                                 )
                             ):
                                 raise V20PresFormatHandlerError(
@@ -245,16 +243,13 @@ class DIFPresFormatHandler(V20PresFormatHandler):
                             elif (
                                 len(proof_types) >= 2
                                 and (
-                                    BbsBlsSignature2020.signature_type
-                                    not in proof_types
+                                    BbsBlsSignature2020.signature_type not in proof_types
                                 )
                                 and (
-                                    Ed25519Signature2018.signature_type
-                                    not in proof_types
+                                    Ed25519Signature2018.signature_type not in proof_types
                                 )
                                 and (
-                                    Ed25519Signature2020.signature_type
-                                    not in proof_types
+                                    Ed25519Signature2020.signature_type not in proof_types
                                 )
                             ):
                                 raise V20PresFormatHandlerError(
@@ -268,30 +263,39 @@ class DIFPresFormatHandler(V20PresFormatHandler):
                                         proof_format
                                         == Ed25519Signature2018.signature_type
                                     ):
-                                        proof_type = [
-                                            Ed25519Signature2018.signature_type
-                                        ]
+                                        proof_type = [Ed25519Signature2018.signature_type]
                                         dif_handler_proof_type = (
                                             Ed25519Signature2018.signature_type
                                         )
                                         break
                                     elif (
-                                        proof_format
-                                        == BbsBlsSignature2020.signature_type
+                                        proof_format == BbsBlsSignature2020.signature_type
                                     ):
-                                        proof_type = [
-                                            BbsBlsSignature2020.signature_type
-                                        ]
+                                        proof_type = [BbsBlsSignature2020.signature_type]
                                         dif_handler_proof_type = (
                                             BbsBlsSignature2020.signature_type
                                         )
                                         break
+                    elif claim_fmt.di_vc:
+                        if "proof_type" in claim_fmt.di_vc:
+                            proof_types = claim_fmt.di_vc.get("proof_type")
+
+                            proof_type = [
+                                "DataIntegrityProof"
+                            ]  # [LinkedDataProof.signature_type]
+                            dif_handler_proof_type = "anoncreds-2023"
+
+                        # TODO check acceptable proof type(s) ("anoncreds-2023")
+
                     else:
+                        # TODO di_vc allowed ...
                         raise V20PresFormatHandlerError(
-                            "Currently, only ldp_vp with "
+                            "Currently, only: ldp_vp with "
                             "BbsBlsSignature2020, Ed25519Signature2018 and "
-                            "Ed25519Signature2020 signature types are supported"
+                            "Ed25519Signature2020 signature types; and "
+                            "di_vc with anoncreds-2023 signatures are supported"
                         )
+
                 if one_of_uri_groups:
                     records = []
                     cred_group_record_ids = set()
@@ -317,6 +321,7 @@ class DIFPresFormatHandler(V20PresFormatHandler):
                     # For now, setting to 1000
                     max_results = 1000
                     records = await search.fetch(max_results)
+
                 # Avoiding addition of duplicate records
                 (
                     vcrecord_list,
@@ -324,6 +329,7 @@ class DIFPresFormatHandler(V20PresFormatHandler):
                 ) = await self.process_vcrecords_return_list(records, record_ids)
                 record_ids = vcrecord_ids_set
                 credentials_list = credentials_list + vcrecord_list
+
         except StorageNotFoundError as err:
             raise V20PresFormatHandlerError(err)
         except TypeError as err:
@@ -346,6 +352,7 @@ class DIFPresFormatHandler(V20PresFormatHandler):
                 )
                 return
 
+        # TODO check for ldp_vp vs di_vc request and prepare presentation as appropriate
         dif_handler = DIFPresExchHandler(
             self._profile,
             pres_signing_did=issuer_id,
@@ -359,6 +366,7 @@ class DIFPresFormatHandler(V20PresFormatHandler):
                 pd=pres_definition,
                 credentials=credentials_list,
                 records_filter=limit_record_ids,
+                is_holder_override=True,
             )
             return self.get_format_data(PRES_20, pres)
         except DIFPresExchError as err:
@@ -443,15 +451,7 @@ class DIFPresFormatHandler(V20PresFormatHandler):
 
         """
         dif_proof = pres_ex_record.pres.attachment(DIFPresFormatHandler.format)
-        pres_request = pres_ex_record.pres_request.attachment(
-            DIFPresFormatHandler.format
-        )
-        manager = VcLdpManager(self.profile)
-
-        options = LDProofVCOptions.deserialize(pres_request["options"])
-        if not options.challenge:
-            options.challenge = str(uuid4())
-
+        pres_request = pres_ex_record.pres_request.attachment(DIFPresFormatHandler.format)
         pres_ver_result = None
         if isinstance(dif_proof, Sequence):
             if len(dif_proof) == 0:
@@ -459,6 +459,7 @@ class DIFPresFormatHandler(V20PresFormatHandler):
                     "Presentation exchange record has no presentations to verify"
                 )
             for proof in dif_proof:
+                manager, options = self._get_type_manager_options(proof, pres_request)
                 pres_ver_result = await manager.verify_presentation(
                     vp=VerifiablePresentation.deserialize(proof),
                     options=options,
@@ -466,6 +467,7 @@ class DIFPresFormatHandler(V20PresFormatHandler):
                 if not pres_ver_result.verified:
                     break
         else:
+            manager, options = self._get_type_manager_options(dif_proof, pres_request)
             pres_ver_result = await manager.verify_presentation(
                 vp=VerifiablePresentation.deserialize(dif_proof),
                 options=options,
@@ -474,3 +476,15 @@ class DIFPresFormatHandler(V20PresFormatHandler):
         assert pres_ver_result is not None
         pres_ex_record.verified = json.dumps(pres_ver_result.verified)
         return pres_ex_record
+
+    def _get_type_manager_options(self, dif_proof: dict, pres_request: dict):
+        """Get the type of manager and options based on the proof type."""
+        if dif_proof.get("proof") and dif_proof["proof"]["type"] == "DataIntegrityProof":
+            manager = VcDiManager(self.profile)
+            options = pres_request
+        else:
+            manager = VcLdpManager(self.profile)
+            options = LDProofVCOptions.deserialize(pres_request["options"])
+            if not options.challenge:
+                options.challenge = str(uuid4())
+        return manager, options

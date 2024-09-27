@@ -1,18 +1,17 @@
 """DID Key class and resolver methods."""
 
+from ..vc.ld_proofs.constants import DID_V1_CONTEXT_URL
 from ..wallet.crypto import ed25519_pk_to_curve25519
 from ..wallet.key_type import (
-    BLS12381G1G2,
-    ED25519,
-    KeyType,
     BLS12381G1,
-    X25519,
+    BLS12381G1G2,
     BLS12381G2,
+    ED25519,
+    X25519,
+    KeyType,
     KeyTypes,
 )
 from ..wallet.util import b58_to_bytes, bytes_to_b58
-
-from ..vc.ld_proofs.constants import DID_V1_CONTEXT_URL
 
 
 class DIDKey:
@@ -70,7 +69,7 @@ class DIDKey:
     def from_did(cls, did: str) -> "DIDKey":
         """Initialize a new DIDKey instance from a fully qualified did:key string.
 
-        Extracts the fingerprint from the did:key and uses that to constrcut the did:key.
+        Extracts the fingerprint from the did:key and uses that to construct the did:key.
         """
         did_parts = did.split("#")
         _, fingerprint = did_parts[0].split("did:key:")
@@ -277,9 +276,7 @@ def construct_did_key_ed25519(did_key: "DIDKey") -> dict:
     return did_doc
 
 
-def construct_did_signature_key_base(
-    *, id: str, key_id: str, verification_method: dict
-):
+def construct_did_signature_key_base(*, id: str, key_id: str, verification_method: dict):
     """Create base did key structure to use for most signature keys.
 
     May not be suitable for all did key types

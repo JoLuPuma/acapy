@@ -1,16 +1,15 @@
-from unittest import IsolatedAsyncioTestCase
-from aries_cloudagent.tests import mock
 import json
+from unittest import IsolatedAsyncioTestCase
+
+from aries_cloudagent.tests import mock
 
 from ......connections.models.connection_target import ConnectionTarget
 from ......messaging.base_handler import HandlerException
 from ......messaging.request_context import RequestContext
 from ......messaging.responder import MockResponder
 from ......transport.inbound.receipt import MessageReceipt
-
-from ...models.route_record import RouteRecord
 from ...messages.forward import Forward
-
+from ...models.route_record import RouteRecord
 from .. import forward_handler as test_module
 
 TEST_CONN_ID = "conn-id"
@@ -39,14 +38,12 @@ class TestForwardHandler(IsolatedAsyncioTestCase):
             mock_mgr.return_value.get_recipient = mock.CoroutineMock(
                 return_value=RouteRecord(connection_id="dummy")
             )
-            mock_connection_mgr.return_value.get_connection_targets = (
-                mock.CoroutineMock(
-                    return_value=[
-                        ConnectionTarget(
-                            recipient_keys=["recip_key"],
-                        )
-                    ]
-                )
+            mock_connection_mgr.return_value.get_connection_targets = mock.CoroutineMock(
+                return_value=[
+                    ConnectionTarget(
+                        recipient_keys=["recip_key"],
+                    )
+                ]
             )
 
             await handler.handle(self.context, responder)
@@ -77,9 +74,7 @@ class TestForwardHandler(IsolatedAsyncioTestCase):
         handler = test_module.ForwardHandler()
 
         responder = MockResponder()
-        with mock.patch.object(
-            test_module, "RoutingManager", autospec=True
-        ) as mock_mgr:
+        with mock.patch.object(test_module, "RoutingManager", autospec=True) as mock_mgr:
             mock_mgr.return_value.get_recipient = mock.CoroutineMock(
                 side_effect=test_module.RoutingManagerError()
             )

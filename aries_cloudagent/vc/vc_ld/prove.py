@@ -2,15 +2,14 @@
 
 from typing import List
 
-
 from ..ld_proofs import (
     AuthenticationProofPurpose,
-    ProofPurpose,
     DocumentLoaderMethod,
-    sign,
     LinkedDataProof,
     LinkedDataProofException,
+    ProofPurpose,
     derive,
+    sign,
 )
 from ..ld_proofs.constants import CREDENTIALS_CONTEXT_V1_URL
 from .models.credential import VerifiableCredentialSchema
@@ -25,7 +24,7 @@ async def create_presentation(
     not sign the presentation yet. Call sing_presentation to do this.
 
     Args:
-        credentials (List[dict]): Credentails to add to the presentation
+        credentials (List[dict]): Credentials to add to the presentation
         presentation_id (str, optional): Id of the presentation. Defaults to None.
 
     Raises:

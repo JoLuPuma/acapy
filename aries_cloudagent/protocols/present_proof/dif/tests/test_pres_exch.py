@@ -1,19 +1,17 @@
 """Test for DIF PresExch Schemas."""
 
 import json
-
 from unittest import TestCase
 
 from .....messaging.models.base import BaseModelError
-
 from ..pres_exch import (
     ClaimFormat,
-    SubmissionRequirements,
+    Constraints,
     DIFHolder,
     Filter,
-    Constraints,
-    VPWithSubmission,
     SchemasInputDescriptorFilter,
+    SubmissionRequirements,
+    VPWithSubmission,
 )
 
 
@@ -397,9 +395,7 @@ class TestPresExchSchemas(TestCase):
             test_schemas_filter
         )
         ser_schema_filter = deser_schema_filter.serialize()
-        deser_schema_filter = SchemasInputDescriptorFilter.deserialize(
-            ser_schema_filter
-        )
+        deser_schema_filter = SchemasInputDescriptorFilter.deserialize(ser_schema_filter)
         assert deser_schema_filter.oneof_filter
         assert deser_schema_filter.uri_groups[0][0].uri == test_schema_list[0][0].get(
             "uri"
@@ -424,28 +420,16 @@ class TestPresExchSchemas(TestCase):
             test_schemas_filter
         )
         ser_schema_filter = deser_schema_filter.serialize()
-        deser_schema_filter = SchemasInputDescriptorFilter.deserialize(
-            ser_schema_filter
-        )
+        deser_schema_filter = SchemasInputDescriptorFilter.deserialize(ser_schema_filter)
         assert deser_schema_filter.oneof_filter
-        assert deser_schema_filter.uri_groups[0][0].uri == test_schema_list[0].get(
-            "uri"
-        )
-        assert deser_schema_filter.uri_groups[1][0].uri == test_schema_list[1].get(
-            "uri"
-        )
+        assert deser_schema_filter.uri_groups[0][0].uri == test_schema_list[0].get("uri")
+        assert deser_schema_filter.uri_groups[1][0].uri == test_schema_list[1].get("uri")
         assert isinstance(deser_schema_filter, SchemasInputDescriptorFilter)
 
         deser_schema_filter = SchemasInputDescriptorFilter.deserialize(test_schema_list)
         ser_schema_filter = deser_schema_filter.serialize()
-        deser_schema_filter = SchemasInputDescriptorFilter.deserialize(
-            ser_schema_filter
-        )
+        deser_schema_filter = SchemasInputDescriptorFilter.deserialize(ser_schema_filter)
         assert not deser_schema_filter.oneof_filter
-        assert deser_schema_filter.uri_groups[0][0].uri == test_schema_list[0].get(
-            "uri"
-        )
-        assert deser_schema_filter.uri_groups[0][1].uri == test_schema_list[1].get(
-            "uri"
-        )
+        assert deser_schema_filter.uri_groups[0][0].uri == test_schema_list[0].get("uri")
+        assert deser_schema_filter.uri_groups[0][1].uri == test_schema_list[1].get("uri")
         assert isinstance(deser_schema_filter, SchemasInputDescriptorFilter)

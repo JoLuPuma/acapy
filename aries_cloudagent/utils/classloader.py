@@ -1,10 +1,8 @@
-"""The classloader provides utilties to dynamically load classes and modules."""
+"""The classloader provides utilities to dynamically load classes and modules."""
 
 import inspect
-from importlib import resources
 import sys
-
-from importlib import import_module
+from importlib import import_module, resources
 from importlib.util import find_spec, resolve_name
 from types import ModuleType
 from typing import Optional, Sequence, Type
@@ -68,9 +66,7 @@ class ClassLoader:
         try:
             return import_module(mod_path, package)
         except ModuleNotFoundError as e:
-            raise ModuleLoadError(
-                f"Unable to import module {full_path}: {str(e)}"
-            ) from e
+            raise ModuleLoadError(f"Unable to import module {full_path}: {str(e)}") from e
 
     @classmethod
     def load_class(

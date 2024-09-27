@@ -1,10 +1,6 @@
 """Connect invitation handler."""
 
-from .....messaging.base_handler import (
-    BaseHandler,
-    BaseResponder,
-    RequestContext,
-)
+from .....messaging.base_handler import BaseHandler, BaseResponder, RequestContext
 from ..messages.connection_invitation import ConnectionInvitation
 from ..messages.problem_report import ConnectionProblemReport, ProblemReportReason
 
@@ -26,9 +22,7 @@ class ConnectionInvitationHandler(BaseHandler):
         report = ConnectionProblemReport(
             description={
                 "code": ProblemReportReason.INVITATION_NOT_ACCEPTED.value,
-                "en": (
-                    "Connection invitations cannot be submitted via agent messaging"
-                ),
+                "en": ("Connection invitations cannot be submitted via agent messaging"),
             }
         )
         report.assign_thread_from(context.message)

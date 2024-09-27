@@ -58,9 +58,7 @@ class group:
     def get_registered(cls, category: str = None):
         """Fetch the set of registered classes in a category."""
         return (
-            grp
-            for (cats, grp) in cls._registered
-            if category is None or category in cats
+            grp for (cats, grp) in cls._registered if category is None or category in cats
         )
 
 
@@ -216,11 +214,11 @@ class AdminGroup(ArgumentGroup):
         return settings
 
 
-@group(CAT_START)
-class DebugGroup(ArgumentGroup):
-    """Debug settings."""
+@group(CAT_PROVISION, CAT_START, CAT_UPGRADE)
+class DebuggerGroup(ArgumentGroup):
+    """Debugger settings."""
 
-    GROUP_NAME = "Debug"
+    GROUP_NAME = "Debugger"
 
     def add_arguments(self, parser: ArgumentParser):
         """Add debug command line arguments to the parser."""
@@ -230,10 +228,28 @@ class DebugGroup(ArgumentGroup):
             env_var="ACAPY_DEBUG",
             help=(
                 "Enables a remote debugging service that can be accessed "
-                "using ptvsd for Visual Studio Code. The framework will wait "
-                "for the debugger to connect at start-up. Default: false."
+                "using the Debug Adapter Protocol (supported by Visual Studio Code). "
+                "The framework will wait for the debugger to connect at start-up. "
+                "Default: false."
             ),
         )
+
+    def get_settings(self, args: Namespace) -> dict:
+        """Extract debug settings."""
+        settings = {}
+        if args.debug:
+            settings["debug.enabled"] = True
+        return settings
+
+
+@group(CAT_START)
+class DebugGroup(ArgumentGroup):
+    """Debug settings."""
+
+    GROUP_NAME = "Debug"
+
+    def add_arguments(self, parser: ArgumentParser):
+        """Add debug command line arguments to the parser."""
         parser.add_argument(
             "--debug-seed",
             dest="debug_seed",
@@ -417,8 +433,6 @@ class DebugGroup(ArgumentGroup):
     def get_settings(self, args: Namespace) -> dict:
         """Extract debug settings."""
         settings = {}
-        if args.debug:
-            settings["debug.enabled"] = True
         if args.debug_connections:
             settings["debug.connections"] = True
         if args.debug_credentials:
@@ -504,9 +518,7 @@ class DiscoverFeaturesGroup(ArgumentGroup):
                 if "protocols" in provided_lists:
                     settings["disclose_protocol_list"] = provided_lists.get("protocols")
                 if "goal-codes" in provided_lists:
-                    settings["disclose_goal_code_list"] = provided_lists.get(
-                        "goal-codes"
-                    )
+                    settings["disclose_goal_code_list"] = provided_lists.get("goal-codes")
         return settings
 
 
@@ -585,9 +597,10 @@ class GeneralGroup(ArgumentGroup):
             metavar="<storage-type>",
             env_var="ACAPY_STORAGE_TYPE",
             help=(
+                "DEPRECATED: This option is ignored. "
                 "Specifies the type of storage provider to use for the internal "
                 "storage engine. This storage interface is used to store internal "
-                "state  Supported internal storage types are 'basic' (memory) "
+                "state. Supported internal storage types are 'basic' (memory) "
                 "and 'indy'.  The default (if not specified) is 'indy' if the "
                 "wallet type is set to 'indy', otherwise 'basic'."
             ),
@@ -619,12 +632,6 @@ class GeneralGroup(ArgumentGroup):
             help="Specifies the profile endpoint for the (public) DID.",
         )
         parser.add_argument(
-            "--read-only-ledger",
-            action="store_true",
-            env_var="ACAPY_READ_ONLY_LEDGER",
-            help="Sets ledger to read-only to prevent updates. Default: false.",
-        )
-        parser.add_argument(
             "--universal-resolver",
             type=str,
             nargs="?",
@@ -646,14 +653,16 @@ class GeneralGroup(ArgumentGroup):
                 "resolver instance."
             ),
         )
-        parser.add_argument(
-            "--universal-resolver-bearer-token",
-            type=str,
-            nargs="?",
-            metavar="<universal_resolver_token>",
-            env_var="ACAPY_UNIVERSAL_RESOLVER_BEARER_TOKEN",
-            help="Bearer token if universal resolver instance requires authentication.",
-        ),
+        (
+            parser.add_argument(
+                "--universal-resolver-bearer-token",
+                type=str,
+                nargs="?",
+                metavar="<universal_resolver_token>",
+                env_var="ACAPY_UNIVERSAL_RESOLVER_BEARER_TOKEN",
+                help="Bearer token if universal resolver instance requires authentication.",  # noqa: E501
+            ),
+        )
 
     def get_settings(self, args: Namespace) -> dict:
         """Extract general settings."""
@@ -686,13 +695,12 @@ class GeneralGroup(ArgumentGroup):
         if args.endpoint:
             settings["default_endpoint"] = args.endpoint[0]
             settings["additional_endpoints"] = args.endpoint[1:]
-        else:
+
+        elif "no_transport" not in args:
             raise ArgsParseError("-e/--endpoint is required")
+
         if args.profile_endpoint:
             settings["profile_endpoint"] = args.profile_endpoint
-
-        if args.read_only_ledger:
-            settings["read_only_ledger"] = True
 
         if args.universal_resolver_regex and not args.universal_resolver:
             raise ArgsParseError(
@@ -856,6 +864,12 @@ class LedgerGroup(ArgumentGroup):
             ),
         )
         parser.add_argument(
+            "--read-only-ledger",
+            action="store_true",
+            env_var="ACAPY_READ_ONLY_LEDGER",
+            help="Sets ledger to read-only to prevent updates. Default: false.",
+        )
+        parser.add_argument(
             "--ledger-keepalive",
             default=5,
             type=BoundedInt(min=5),
@@ -912,6 +926,9 @@ class LedgerGroup(ArgumentGroup):
             multi_configured = False
             update_pool_name = False
             write_ledger_specified = False
+
+            if args.read_only_ledger:
+                settings["read_only_ledger"] = True
             if args.genesis_url:
                 settings["ledger.genesis_url"] = args.genesis_url
                 single_configured = True
@@ -940,7 +957,7 @@ class LedgerGroup(ArgumentGroup):
                             txn_config["pool_name"] = txn_config["id"]
                         update_pool_name = True
                         ledger_config_list.append(txn_config)
-                    if not write_ledger_specified:
+                    if not write_ledger_specified and not args.read_only_ledger:
                         raise ArgsParseError(
                             "No write ledger genesis provided in multi-ledger config"
                         )
@@ -1166,18 +1183,12 @@ class ProtocolGroup(ArgumentGroup):
                 "using unencrypted rather than encrypted tags"
             ),
         )
-        parser.add_argument(
-            "--emit-did-peer-2",
-            action="store_true",
-            env_var="ACAPY_EMIT_DID_PEER_2",
-            help=("Emit did:peer:2 DIDs in DID Exchange Protocol"),
-        )
 
         parser.add_argument(
-            "--emit-did-peer-4",
+            "--experimental-didcomm-v2",
             action="store_true",
-            env_var="ACAPY_EMIT_DID_PEER_4",
-            help=("Emit did:peer:4 DIDs in DID Exchange Protocol"),
+            env_var="ACAPY_EXP_DIDCOMM_V2",
+            help="Enable experimental DIDComm V2 support.",
         )
 
     def get_settings(self, args: Namespace) -> dict:
@@ -1198,8 +1209,8 @@ class ProtocolGroup(ArgumentGroup):
         if args.requests_through_public_did:
             if not args.public_invites:
                 raise ArgsParseError(
-                    "--public-invites is required to use "
-                    "--requests-through-public-did"
+                    "--public-invites is required to use ",
+                    "--requests-through-public-did",
                 )
             settings["requests_through_public_did"] = True
         if args.timing:
@@ -1245,11 +1256,8 @@ class ProtocolGroup(ArgumentGroup):
         if args.exch_use_unencrypted_tags:
             settings["exch_use_unencrypted_tags"] = True
             environ["EXCH_UNENCRYPTED_TAGS"] = "True"
-
-        if args.emit_did_peer_2:
-            settings["emit_did_peer_2"] = True
-        if args.emit_did_peer_4:
-            settings["emit_did_peer_4"] = True
+        if args.experimental_didcomm_v2:
+            settings["experiment.didcomm_v2"] = True
 
         return settings
 
@@ -1288,6 +1296,19 @@ class TransportGroup(ArgumentGroup):
 
     def add_arguments(self, parser: ArgumentParser):
         """Add transport-specific command line arguments to the parser."""
+        parser.add_argument(
+            "--no-transport",
+            dest="no_transport",
+            action="store_true",
+            env_var="ACAPY_NO_TRANSPORT",
+            help=(
+                "Specifies that aca-py will run with no transport configured. "
+                "This must be set if running in no-transport mode.  Overrides any "
+                "specified transport or endpoint configurations.  "
+                "Either this parameter or the "
+                "'--endpoint' parameter MUST be specified. Default: false."
+            ),
+        )
         parser.add_argument(
             "-it",
             "--inbound-transport",
@@ -1396,28 +1417,31 @@ class TransportGroup(ArgumentGroup):
     def get_settings(self, args: Namespace):
         """Extract transport settings."""
         settings = {}
-        if args.inbound_transports:
-            settings["transport.inbound_configs"] = args.inbound_transports
+        if args.no_transport:
+            settings["transport.disabled"] = True
         else:
-            raise ArgsParseError("-it/--inbound-transport is required")
-        if args.outbound_transports:
-            settings["transport.outbound_configs"] = args.outbound_transports
-        else:
-            raise ArgsParseError("-ot/--outbound-transport is required")
-        settings["transport.enable_undelivered_queue"] = args.enable_undelivered_queue
+            if args.inbound_transports:
+                settings["transport.inbound_configs"] = args.inbound_transports
+            else:
+                raise ArgsParseError("-it/--inbound-transport is required")
+            if args.outbound_transports:
+                settings["transport.outbound_configs"] = args.outbound_transports
+            else:
+                raise ArgsParseError("-ot/--outbound-transport is required")
+            settings["transport.enable_undelivered_queue"] = args.enable_undelivered_queue
+            if args.max_message_size:
+                settings["transport.max_message_size"] = args.max_message_size
+            if args.max_outbound_retry:
+                settings["transport.max_outbound_retry"] = args.max_outbound_retry
+            if args.ws_heartbeat_interval:
+                settings["transport.ws.heartbeat_interval"] = args.ws_heartbeat_interval
+            if args.ws_timeout_interval:
+                settings["transport.ws.timeout_interval"] = args.ws_timeout_interval
 
         if args.label:
             settings["default_label"] = args.label
         if args.image_url:
             settings["image_url"] = args.image_url
-        if args.max_message_size:
-            settings["transport.max_message_size"] = args.max_message_size
-        if args.max_outbound_retry:
-            settings["transport.max_outbound_retry"] = args.max_outbound_retry
-        if args.ws_heartbeat_interval:
-            settings["transport.ws.heartbeat_interval"] = args.ws_heartbeat_interval
-        if args.ws_timeout_interval:
-            settings["transport.ws.timeout_interval"] = args.ws_timeout_interval
 
         return settings
 
@@ -1511,9 +1535,7 @@ class MediationGroup(ArgumentGroup):
             settings["mediation.clear"] = True
 
         if args.clear_default_mediator and args.default_mediator_id:
-            raise ArgsParseError(
-                "Cannot both set and clear mediation at the same time."
-            )
+            raise ArgsParseError("Cannot both set and clear mediation at the same time.")
 
         return settings
 
@@ -1591,10 +1613,10 @@ class WalletGroup(ArgumentGroup):
             default="basic",
             env_var="ACAPY_WALLET_TYPE",
             help=(
-                "Specifies the type of Indy wallet provider to use. "
+                "Specifies the type of wallet provider to use. "
                 "Supported internal storage types are 'basic' (memory), 'askar' "
                 "and 'askar-anoncreds'."
-                "The default (if not specified) is 'basic'. 'indy' is deprecated."
+                "The default (if not specified) is 'basic'."
             ),
         )
         parser.add_argument(
@@ -1618,10 +1640,7 @@ class WalletGroup(ArgumentGroup):
             help=(
                 "Specifies the storage configuration to use for the wallet. "
                 "This is required if you are for using 'postgres_storage' wallet "
-                'storage type. For example, \'{"url":"localhost:5432", '
-                '"wallet_scheme":"MultiWalletSingleTable"}\'. This '
-                "configuration maps to the indy sdk postgres plugin "
-                "(PostgresConfig)."
+                'storage type. For example, \'{"url":"localhost:5432"}\'.'
             ),
         )
         parser.add_argument(
@@ -1629,10 +1648,16 @@ class WalletGroup(ArgumentGroup):
             type=str,
             metavar="<key-derivation-method>",
             env_var="ACAPY_WALLET_KEY_DERIVATION_METHOD",
+            help=("Specifies the key derivation method used for wallet encryption."),
+        )
+        parser.add_argument(
+            "--wallet-rekey-derivation-method",
+            type=str,
+            metavar="<rekey-derivation-method>",
+            env_var="ACAPY_WALLET_REKEY_DERIVATION_METHOD",
             help=(
-                "Specifies the key derivation method used for wallet encryption."
-                "If RAW key derivation method is used, also --wallet-key parameter"
-                " is expected."
+                "Specifies the key derivation method used for the replacement"
+                "rekey encryption."
             ),
         )
         parser.add_argument(
@@ -1645,9 +1670,8 @@ class WalletGroup(ArgumentGroup):
                 "This is required if you are for using 'postgres_storage' wallet "
                 'For example, \'{"account":"postgres","password": '
                 '"mysecretpassword","admin_account":"postgres", '
-                '"admin_password":"mysecretpassword"}\'. This configuration maps '
-                "to the indy sdk postgres plugin (PostgresCredentials). NOTE: "
-                "admin_user must have the CREATEDB role or else initialization "
+                '"admin_password":"mysecretpassword"}\'.'
+                "NOTE: admin_user must have the CREATEDB role or else initialization "
                 "will fail."
             ),
         )
@@ -1692,6 +1716,10 @@ class WalletGroup(ArgumentGroup):
             settings["wallet.type"] = args.wallet_type
         if args.wallet_key_derivation_method:
             settings["wallet.key_derivation_method"] = args.wallet_key_derivation_method
+        if args.wallet_rekey_derivation_method:
+            settings["wallet.rekey_derivation_method"] = (
+                args.wallet_rekey_derivation_method
+            )
         if args.wallet_storage_config:
             settings["wallet.storage_config"] = args.wallet_storage_config
         if args.wallet_storage_creds:
@@ -1701,7 +1729,7 @@ class WalletGroup(ArgumentGroup):
         if args.recreate_wallet:
             settings["wallet.recreate"] = True
         # check required settings for persistent wallets
-        if settings["wallet.type"] in ["indy", "askar", "askar-anoncreds"]:
+        if settings["wallet.type"] in ["askar", "askar-anoncreds"]:
             # requires name, key
             if not args.wallet_name or not args.wallet_key:
                 raise ArgsParseError(
@@ -1716,7 +1744,7 @@ class WalletGroup(ArgumentGroup):
                 if not args.wallet_storage_config or not args.wallet_storage_creds:
                     raise ArgsParseError(
                         "Parameters --wallet-storage-config and --wallet-storage-creds "
-                        "must be provided for indy postgres wallets"
+                        "must be provided for postgres wallets"
                     )
         return settings
 
@@ -1760,10 +1788,10 @@ class MultitenantGroup(ArgumentGroup):
             env_var="ACAPY_MULTITENANCY_CONFIGURATION",
             help=(
                 "Specify multitenancy configuration in key=value pairs. "
-                'For example: "wallet_type=askar-profile wallet_name=askar-profile-name" '
+                'For example: "wallet_type=single-wallet-askar wallet_name=wallet-name" '
                 "Possible values: wallet_name, wallet_key, cache_size, "
                 'key_derivation_method. "wallet_name" is only used when '
-                '"wallet_type" is "askar-profile"'
+                '"wallet_type" is "single-wallet-askar"'
             ),
         )
         parser.add_argument(
@@ -1852,9 +1880,9 @@ class EndorsementGroup(ArgumentGroup):
                 "Specify the role ('author' or 'endorser') which this agent will "
                 "participate. Authors will request transaction endorement from an "
                 "Endorser. Endorsers will endorse transactions from Authors, and "
-                "may write their own  transactions to the ledger. If no role "
+                "may write their own transactions to the ledger. If no role "
                 "(or 'none') is specified then the endorsement protocol will not "
-                " be used and this agent will write transactions to the ledger "
+                "be used and this agent will write transactions to the ledger "
                 "directly."
             ),
         )
@@ -1885,7 +1913,7 @@ class EndorsementGroup(ArgumentGroup):
             metavar="<endorser-endorse-with-did>",
             env_var="ACAPY_ENDORSER_ENDORSE_WITH_DID",
             help=(
-                "For transaction Endorsers, specify the  DID to use to endorse "
+                "For transaction Endorsers, specify the DID to use to endorse "
                 "transactions.  The default (if not specified) is to use the "
                 "Endorser's Public DID."
             ),

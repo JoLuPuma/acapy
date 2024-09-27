@@ -1,48 +1,45 @@
+import json
 from copy import deepcopy
 from time import time
-import json
 from unittest import IsolatedAsyncioTestCase
-from aries_cloudagent.tests import mock
+
 from marshmallow import ValidationError
 
-from .. import handler as test_module
+from aries_cloudagent.tests import mock
 
+from .......cache.base import BaseCache
+from .......cache.in_memory import InMemoryCache
 from .......core.in_memory import InMemoryProfile
+from .......indy.holder import IndyHolder
+from .......indy.issuer import IndyIssuer
 from .......ledger.base import BaseLedger
 from .......ledger.multiple_ledger.ledger_requests_executor import (
     IndyLedgerRequestsExecutor,
 )
-from .......multitenant.base import BaseMultitenantManager
-from .......multitenant.manager import MultitenantManager
-from .......indy.issuer import IndyIssuer
-from .......cache.in_memory import InMemoryCache
-from .......cache.base import BaseCache
-from .......storage.record import StorageRecord
 from .......messaging.credential_definitions.util import CRED_DEF_SENT_RECORD_TYPE
 from .......messaging.decorators.attach_decorator import AttachDecorator
-from .......indy.holder import IndyHolder
-from ....models.detail.indy import V20CredExRecordIndy
-from ....messages.cred_proposal import V20CredProposal
-from ....messages.cred_format import V20CredFormat
-from ....messages.cred_issue import V20CredIssue
-from ....messages.inner.cred_preview import V20CredPreview, V20CredAttrSpec
-from ....messages.cred_offer import V20CredOffer
-from ....messages.cred_request import (
-    V20CredRequest,
-)
-from ....models.cred_ex_record import V20CredExRecord
+from .......multitenant.base import BaseMultitenantManager
+from .......multitenant.manager import MultitenantManager
+from .......storage.record import StorageRecord
 from ....message_types import (
     ATTACHMENT_FORMAT,
-    CRED_20_PROPOSAL,
-    CRED_20_OFFER,
-    CRED_20_REQUEST,
     CRED_20_ISSUE,
+    CRED_20_OFFER,
+    CRED_20_PROPOSAL,
+    CRED_20_REQUEST,
 )
-
+from ....messages.cred_format import V20CredFormat
+from ....messages.cred_issue import V20CredIssue
+from ....messages.cred_offer import V20CredOffer
+from ....messages.cred_proposal import V20CredProposal
+from ....messages.cred_request import V20CredRequest
+from ....messages.inner.cred_preview import V20CredAttrSpec, V20CredPreview
+from ....models.cred_ex_record import V20CredExRecord
+from ....models.detail.indy import V20CredExRecordIndy
 from ...handler import V20CredFormatError
-
-from ..handler import IndyCredFormatHandler
+from .. import handler as test_module
 from ..handler import LOGGER as INDY_LOGGER
+from ..handler import IndyCredFormatHandler
 
 TEST_DID = "LjgpST2rjsoxYegQDRm7EL"
 SCHEMA_NAME = "bc-reg"
@@ -204,9 +201,7 @@ class TestV20IndyCredFormatHandler(IsolatedAsyncioTestCase):
         Ledger = mock.MagicMock()
         self.ledger = Ledger()
         self.ledger.get_schema = mock.CoroutineMock(return_value=SCHEMA)
-        self.ledger.get_credential_definition = mock.CoroutineMock(
-            return_value=CRED_DEF
-        )
+        self.ledger.get_credential_definition = mock.CoroutineMock(return_value=CRED_DEF)
         self.ledger.get_revoc_reg_def = mock.CoroutineMock(return_value=REV_REG_DEF)
         self.ledger.__aenter__ = mock.CoroutineMock(return_value=self.ledger)
         self.ledger.credential_definition_id2schema_id = mock.CoroutineMock(
@@ -284,9 +279,7 @@ class TestV20IndyCredFormatHandler(IsolatedAsyncioTestCase):
         await details_indy[0].save(self.session)
         await details_indy[1].save(self.session)  # exercise logger warning on get()
 
-        with mock.patch.object(
-            INDY_LOGGER, "warning", mock.MagicMock()
-        ) as mock_warning:
+        with mock.patch.object(INDY_LOGGER, "warning", mock.MagicMock()) as mock_warning:
             assert await self.handler.get_detail_record(cred_ex_id) in details_indy
             mock_warning.assert_called_once()
 
@@ -573,9 +566,7 @@ class TestV20IndyCredFormatHandler(IsolatedAsyncioTestCase):
         )
 
         cred_def = {"cred": "def"}
-        self.ledger.get_credential_definition = mock.CoroutineMock(
-            return_value=cred_def
-        )
+        self.ledger.get_credential_definition = mock.CoroutineMock(return_value=cred_def)
 
         cred_req_meta = {}
         self.holder.create_credential_request = mock.CoroutineMock(
@@ -615,27 +606,23 @@ class TestV20IndyCredFormatHandler(IsolatedAsyncioTestCase):
             "get_ledger_for_identifier",
             mock.CoroutineMock(return_value=(None, self.ledger)),
         ):
-            await self.handler.create_request(
-                cred_ex_record, {"holder_did": holder_did}
-            )
+            await self.handler.create_request(cred_ex_record, {"holder_did": holder_did})
 
     async def test_create_request_bad_state(self):
         cred_ex_record = V20CredExRecord(state=V20CredExRecord.STATE_OFFER_SENT)
 
         with self.assertRaises(V20CredFormatError) as context:
             await self.handler.create_request(cred_ex_record)
-        assert (
-            "Indy issue credential format cannot start from credential request"
-            in str(context.exception)
+        assert "Indy issue credential format cannot start from credential request" in str(
+            context.exception
         )
 
         cred_ex_record.state = None
 
         with self.assertRaises(V20CredFormatError) as context:
             await self.handler.create_request(cred_ex_record)
-        assert (
-            "Indy issue credential format cannot start from credential request"
-            in str(context.exception)
+        assert "Indy issue credential format cannot start from credential request" in str(
+            context.exception
         )
 
     async def test_create_request_not_unique_x(self):
@@ -667,9 +654,8 @@ class TestV20IndyCredFormatHandler(IsolatedAsyncioTestCase):
         with self.assertRaises(V20CredFormatError) as context:
             await self.handler.receive_request(cred_ex_record, cred_request_message)
 
-        assert (
-            "Indy issue credential format cannot start from credential request"
-            in str(context.exception)
+        assert "Indy issue credential format cannot start from credential request" in str(
+            context.exception
         )
 
     async def test_issue_credential_revocable(self):

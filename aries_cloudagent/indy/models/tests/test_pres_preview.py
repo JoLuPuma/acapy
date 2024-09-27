@@ -1,11 +1,10 @@
 import json
-import pytest
-
 from copy import deepcopy
 from time import time
 from unittest import TestCase
 
-from unittest import IsolatedAsyncioTestCase
+import pytest
+
 from aries_cloudagent.tests import mock
 
 from ....core.in_memory import InMemoryProfile
@@ -16,15 +15,13 @@ from ....messaging.util import canon
 from ....multitenant.base import BaseMultitenantManager
 from ....multitenant.manager import MultitenantManager
 from ....protocols.didcomm_prefix import DIDCommPrefix
-
-
 from ..non_rev_interval import IndyNonRevocationInterval
 from ..predicate import Predicate
 from ..pres_preview import (
+    PRESENTATION_PREVIEW,
     IndyPresAttrSpec,
     IndyPresPredSpec,
     IndyPresPreview,
-    PRESENTATION_PREVIEW,
 )
 
 S_ID = {
@@ -252,7 +249,7 @@ class TestIndyPresAttrSpec(TestCase):
         )
 
         attr_spec = IndyPresAttrSpec.deserialize(dump)
-        assert type(attr_spec) == IndyPresAttrSpec
+        assert type(attr_spec) is IndyPresAttrSpec
         assert canon(attr_spec.name) == "player"
 
         dump = json.dumps(
@@ -265,7 +262,7 @@ class TestIndyPresAttrSpec(TestCase):
         )
 
         attr_spec = IndyPresAttrSpec.deserialize(dump)
-        assert type(attr_spec) == IndyPresAttrSpec
+        assert type(attr_spec) is IndyPresAttrSpec
         assert canon(attr_spec.name) == "player"
 
     def test_serialize(self):
@@ -302,7 +299,7 @@ class TestIndyPresPredSpec(TestCase):
         )
 
         pred_spec = IndyPresPredSpec.deserialize(dump)
-        assert type(pred_spec) == IndyPresPredSpec
+        assert type(pred_spec) is IndyPresPredSpec
         assert canon(pred_spec.name) == "highscore"
 
     def test_serialize(self):
@@ -350,8 +347,7 @@ class TestIndyPresPredSpec(TestCase):
         assert pred_spec_a != pred_spec_b
 
 
-@pytest.mark.indy
-class TestIndyPresPreviewAsync(IsolatedAsyncioTestCase):
+class TestIndyPresPreviewAsync:
     """Presentation preview tests"""
 
     @pytest.mark.asyncio
@@ -420,14 +416,14 @@ class TestIndyPresPreviewAsync(IsolatedAsyncioTestCase):
 
         for uuid, attr_spec in indy_proof_req_revo["requested_attributes"].items():
             assert set(attr_spec.get("non_revoked", {}).keys()) == {"from", "to"}
-            copy_indy_proof_req["requested_attributes"][uuid]["non_revoked"] = (
-                attr_spec["non_revoked"]
-            )
+            copy_indy_proof_req["requested_attributes"][uuid]["non_revoked"] = attr_spec[
+                "non_revoked"
+            ]
         for uuid, pred_spec in indy_proof_req_revo["requested_predicates"].items():
             assert set(pred_spec.get("non_revoked", {}).keys()) == {"from", "to"}
-            copy_indy_proof_req["requested_predicates"][uuid]["non_revoked"] = (
-                pred_spec["non_revoked"]
-            )
+            copy_indy_proof_req["requested_predicates"][uuid]["non_revoked"] = pred_spec[
+                "non_revoked"
+            ]
 
         assert copy_indy_proof_req == indy_proof_req_revo
 
@@ -471,14 +467,14 @@ class TestIndyPresPreviewAsync(IsolatedAsyncioTestCase):
 
         for uuid, attr_spec in indy_proof_req_revo["requested_attributes"].items():
             assert set(attr_spec.get("non_revoked", {}).keys()) == {"from", "to"}
-            copy_indy_proof_req["requested_attributes"][uuid]["non_revoked"] = (
-                attr_spec["non_revoked"]
-            )
+            copy_indy_proof_req["requested_attributes"][uuid]["non_revoked"] = attr_spec[
+                "non_revoked"
+            ]
         for uuid, pred_spec in indy_proof_req_revo["requested_predicates"].items():
             assert set(pred_spec.get("non_revoked", {}).keys()) == {"from", "to"}
-            copy_indy_proof_req["requested_predicates"][uuid]["non_revoked"] = (
-                pred_spec["non_revoked"]
-            )
+            copy_indy_proof_req["requested_predicates"][uuid]["non_revoked"] = pred_spec[
+                "non_revoked"
+            ]
 
         assert copy_indy_proof_req == indy_proof_req_revo
 
@@ -503,7 +499,6 @@ class TestIndyPresPreviewAsync(IsolatedAsyncioTestCase):
         assert not attr_spec.satisfies(pred_spec)
 
 
-@pytest.mark.indy
 class TestIndyPresPreview(TestCase):
     """Presentation preview tests"""
 
@@ -547,7 +542,7 @@ class TestIndyPresPreview(TestCase):
         }
 
         preview = IndyPresPreview.deserialize(dump)
-        assert type(preview) == IndyPresPreview
+        assert type(preview) is IndyPresPreview
 
     def test_serialize(self):
         """Test serialization."""

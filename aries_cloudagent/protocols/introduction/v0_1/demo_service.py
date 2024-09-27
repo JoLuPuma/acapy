@@ -5,12 +5,7 @@ import logging
 
 from ....connections.models.conn_record import ConnRecord
 from ....core.profile import ProfileSession
-from ....storage.base import (
-    BaseStorage,
-    StorageRecord,
-    StorageNotFoundError,
-)
-
+from ....storage.base import BaseStorage, StorageNotFoundError, StorageRecord
 from .base_service import BaseIntroductionService, IntroductionError
 from .messages.forward_invitation import ForwardInvitation
 from .messages.invitation import Invitation as IntroInvitation
@@ -42,18 +37,13 @@ class DemoIntroductionService(BaseIntroductionService):
             message: The message to use when requesting the invitation
         """
         try:
-            init_connection = await ConnRecord.retrieve_by_id(
-                session, init_connection_id
-            )
+            init_connection = await ConnRecord.retrieve_by_id(session, init_connection_id)
         except StorageNotFoundError:
             raise IntroductionError(
                 f"Initiator connection {init_connection_id} not found"
             )
 
-        if (
-            ConnRecord.State.get(init_connection.state)
-            is not ConnRecord.State.COMPLETED
-        ):
+        if ConnRecord.State.get(init_connection.state) is not ConnRecord.State.COMPLETED:
             raise IntroductionError(
                 f"Initiator connection {init_connection_id} not active"
             )
@@ -63,17 +53,13 @@ class DemoIntroductionService(BaseIntroductionService):
                 session, target_connection_id
             )
         except StorageNotFoundError:
-            raise IntroductionError(
-                "Target connection {target_connection_id} not found"
-            )
+            raise IntroductionError("Target connection {target_connection_id} not found")
 
         if (
             ConnRecord.State.get(target_connection.state)
             is not ConnRecord.State.COMPLETED
         ):
-            raise IntroductionError(
-                "Target connection {target_connection_id} not active"
-            )
+            raise IntroductionError("Target connection {target_connection_id} not active")
 
         msg = IntroInvitationRequest(
             responder=init_connection.their_label,

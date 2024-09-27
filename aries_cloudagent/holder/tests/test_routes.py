@@ -1,15 +1,18 @@
 import json
-
-from aries_cloudagent.tests import mock
 from unittest import IsolatedAsyncioTestCase
 
-from ...core.in_memory import InMemoryProfile
-from ...ledger.base import BaseLedger
+from aries_askar import AskarErrorCode
 
+from aries_cloudagent.tests import mock
+
+from ...admin.request_context import AdminRequestContext
+from ...anoncreds.holder import AnonCredsHolder, AnonCredsHolderError
+from ...askar.profile_anon import AskarAnoncredsProfile
+from ...core.in_memory.profile import InMemoryProfile
 from ...indy.holder import IndyHolder
+from ...ledger.base import BaseLedger
 from ...storage.vc_holder.base import VCHolder
 from ...storage.vc_holder.vc_record import VCRecord
-
 from .. import routes as test_module
 
 VC_RECORD = VCRecord(
@@ -33,7 +36,11 @@ VC_RECORD = VCRecord(
 
 class TestHolderRoutes(IsolatedAsyncioTestCase):
     def setUp(self):
-        self.profile = InMemoryProfile.test_profile()
+        self.profile = InMemoryProfile.test_profile(
+            settings={
+                "admin.admin_api_key": "secret-key",
+            }
+        )
         self.context = self.profile.context
         setattr(self.context, "profile", self.profile)
 
@@ -43,6 +50,7 @@ class TestHolderRoutes(IsolatedAsyncioTestCase):
             match_info={},
             query={},
             __getitem__=lambda _, k: self.request_dict[k],
+            headers={"x-api-key": "secret-key"},
         )
 
     async def test_credentials_get(self):
@@ -62,6 +70,42 @@ class TestHolderRoutes(IsolatedAsyncioTestCase):
             result = await test_module.credentials_get(self.request)
             json_response.assert_called_once_with({"hello": "world"})
             assert result is json_response.return_value
+
+    @mock.patch.object(AnonCredsHolder, "get_credential")
+    async def test_credentials_get_with_anoncreds(self, mock_get_credential):
+        self.session_inject = {}
+        self.profile = InMemoryProfile.test_profile(
+            settings={
+                "wallet.type": "askar-anoncreds",
+                "admin.admin_api_key": "secret-key",
+            },
+            profile_class=AskarAnoncredsProfile,
+        )
+        self.context = AdminRequestContext.test_context(self.session_inject, self.profile)
+        self.request_dict = {
+            "context": self.context,
+        }
+        self.request = mock.MagicMock(
+            match_info={"credential_id": "dummy"},
+            __getitem__=lambda _, k: self.request_dict[k],
+            context=self.context,
+            headers={"x-api-key": "secret-key"},
+        )
+        self.context.inject = mock.Mock(
+            return_value=mock.MagicMock(
+                get_credential=mock.CoroutineMock(return_value="test-credential")
+            )
+        )
+
+        mock_get_credential.return_value = json.dumps({"hello": "world"})
+
+        with mock.patch.object(
+            test_module.web, "json_response", mock.Mock()
+        ) as json_response:
+            result = await test_module.credentials_get(self.request)
+            json_response.assert_called_once_with({"hello": "world"})
+            assert result is json_response.return_value
+            assert mock_get_credential.called
 
     async def test_credentials_get_not_found(self):
         self.request.match_info = {"credential_id": "dummy"}
@@ -86,6 +130,41 @@ class TestHolderRoutes(IsolatedAsyncioTestCase):
             IndyHolder,
             mock.MagicMock(credential_revoked=mock.CoroutineMock(return_value=False)),
         )
+
+        with mock.patch.object(
+            test_module.web, "json_response", mock.Mock()
+        ) as json_response:
+            result = await test_module.credentials_revoked(self.request)
+            json_response.assert_called_once_with({"revoked": False})
+            assert result is json_response.return_value
+
+    @mock.patch.object(AnonCredsHolder, "credential_revoked")
+    async def test_credentials_revoked_with_anoncreds(self, mock_credential_revoked):
+        self.session_inject = {}
+        self.profile = InMemoryProfile.test_profile(
+            settings={
+                "wallet.type": "askar-anoncreds",
+                "admin.admin_api_key": "secret-key",
+            },
+            profile_class=AskarAnoncredsProfile,
+        )
+        self.context = AdminRequestContext.test_context(self.session_inject, self.profile)
+        self.request_dict = {
+            "context": self.context,
+        }
+        self.request = mock.MagicMock(
+            match_info={"credential_id": "dummy"},
+            __getitem__=lambda _, k: self.request_dict[k],
+            context=self.context,
+            headers={"x-api-key": "secret-key"},
+        )
+        self.context.inject = mock.Mock(
+            return_value=mock.MagicMock(
+                get_credential=mock.CoroutineMock(return_value="test-credential")
+            )
+        )
+
+        mock_credential_revoked.return_value = False
 
         with mock.patch.object(
             test_module.web, "json_response", mock.Mock()
@@ -152,9 +231,44 @@ class TestHolderRoutes(IsolatedAsyncioTestCase):
 
         with mock.patch.object(test_module.web, "json_response") as mock_response:
             await test_module.credentials_attr_mime_types_get(self.request)
-            mock_response.assert_called_once_with(
-                {"results": {"a": "application/jpeg"}}
+            mock_response.assert_called_once_with({"results": {"a": "application/jpeg"}})
+
+    @mock.patch.object(AnonCredsHolder, "get_mime_type")
+    async def test_attribute_mime_types_get_with_anoncreds(self, mock_get_mime_type):
+        self.session_inject = {}
+        self.profile = InMemoryProfile.test_profile(
+            settings={
+                "wallet.type": "askar-anoncreds",
+                "admin.admin_api_key": "secret-key",
+            },
+            profile_class=AskarAnoncredsProfile,
+        )
+        self.context = AdminRequestContext.test_context(self.session_inject, self.profile)
+        self.request_dict = {
+            "context": self.context,
+        }
+        self.request = mock.MagicMock(
+            match_info={"credential_id": "dummy"},
+            __getitem__=lambda _, k: self.request_dict[k],
+            context=self.context,
+            headers={"x-api-key": "secret-key"},
+        )
+        self.context.inject = mock.Mock(
+            return_value=mock.MagicMock(
+                get_credential=mock.CoroutineMock(return_value="test-credential")
             )
+        )
+
+        mock_get_mime_type.side_effect = [None, {"a": "application/jpeg"}]
+
+        with mock.patch.object(test_module.web, "json_response") as mock_response:
+            await test_module.credentials_attr_mime_types_get(self.request)
+            mock_response.assert_called_once_with({"results": None})
+
+        with mock.patch.object(test_module.web, "json_response") as mock_response:
+            await test_module.credentials_attr_mime_types_get(self.request)
+            mock_response.assert_called_once_with({"results": {"a": "application/jpeg"}})
+            assert mock_get_mime_type.called
 
     async def test_credentials_remove(self):
         self.request.match_info = {"credential_id": "dummy"}
@@ -169,6 +283,51 @@ class TestHolderRoutes(IsolatedAsyncioTestCase):
             result = await test_module.credentials_remove(self.request)
             json_response.assert_called_once_with({})
             assert result is json_response.return_value
+
+    @mock.patch.object(AnonCredsHolder, "delete_credential")
+    async def test_credentials_remove_with_anoncreds(self, mock_delete_credential):
+        self.session_inject = {}
+        self.profile = InMemoryProfile.test_profile(
+            settings={
+                "wallet.type": "askar-anoncreds",
+                "admin.admin_api_key": "secret-key",
+            },
+            profile_class=AskarAnoncredsProfile,
+        )
+        self.context = AdminRequestContext.test_context(self.session_inject, self.profile)
+        self.request_dict = {
+            "context": self.context,
+        }
+        self.request = mock.MagicMock(
+            match_info={"credential_id": "dummy"},
+            __getitem__=lambda _, k: self.request_dict[k],
+            context=self.context,
+            headers={"x-api-key": "secret-key"},
+        )
+        self.context.inject = mock.Mock(
+            return_value=mock.MagicMock(
+                get_credential=mock.CoroutineMock(return_value="test-credential")
+            )
+        )
+
+        mock_delete_credential.side_effect = [
+            None,
+            AnonCredsHolderError("anoncreds error", error_code=AskarErrorCode.NOT_FOUND),
+            AnonCredsHolderError("anoncreds error", error_code=AskarErrorCode.UNEXPECTED),
+        ]
+
+        with mock.patch.object(
+            test_module.web, "json_response", mock.Mock()
+        ) as json_response:
+            result = await test_module.credentials_remove(self.request)
+            json_response.assert_called_once_with({})
+            assert result is json_response.return_value
+            assert mock_delete_credential.called
+
+            with self.assertRaises(test_module.web.HTTPNotFound):
+                await test_module.credentials_remove(self.request)
+            with self.assertRaises(test_module.web.HTTPBadRequest):
+                await test_module.credentials_remove(self.request)
 
     async def test_credentials_remove_not_found(self):
         self.request.match_info = {"credential_id": "dummy"}
@@ -191,6 +350,45 @@ class TestHolderRoutes(IsolatedAsyncioTestCase):
                 get_credentials=mock.CoroutineMock(return_value=[{"hello": "world"}])
             ),
         )
+
+        with mock.patch.object(
+            test_module.web, "json_response", mock.Mock()
+        ) as json_response:
+            result = await test_module.credentials_list(self.request)
+            json_response.assert_called_once_with({"results": [{"hello": "world"}]})
+            assert result is json_response.return_value
+
+    @mock.patch.object(AnonCredsHolder, "get_credentials")
+    async def test_credentials_list_with_anoncreds(self, mock_get_credentials):
+        self.session_inject = {}
+        self.profile = InMemoryProfile.test_profile(
+            settings={
+                "wallet.type": "askar-anoncreds",
+                "admin.admin_api_key": "secret-key",
+            },
+            profile_class=AskarAnoncredsProfile,
+        )
+        self.context = AdminRequestContext.test_context(self.session_inject, self.profile)
+        self.request_dict = {
+            "context": self.context,
+        }
+        self.request = mock.MagicMock(
+            match_info={"credential_id": "dummy"},
+            query={
+                "start": "0",
+                "count": "10",
+            },
+            __getitem__=lambda _, k: self.request_dict[k],
+            context=self.context,
+            headers={"x-api-key": "secret-key"},
+        )
+        self.context.inject = mock.Mock(
+            return_value=mock.MagicMock(
+                get_credential=mock.CoroutineMock(return_value="test-credential")
+            )
+        )
+
+        mock_get_credentials.return_value = [{"hello": "world"}]
 
         with mock.patch.object(
             test_module.web, "json_response", mock.Mock()

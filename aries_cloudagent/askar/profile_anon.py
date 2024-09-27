@@ -3,9 +3,6 @@
 import asyncio
 import logging
 import time
-
-# import traceback
-
 from typing import Any, Mapping
 from weakref import ref
 
@@ -25,8 +22,10 @@ from ..storage.vc_holder.base import VCHolder
 from ..utils.multi_ledger import get_write_ledger_config_for_profile
 from ..wallet.base import BaseWallet
 from ..wallet.crypto import validate_seed
+from .store import AskarOpenStore, AskarStoreConfig
 
-from .store import AskarStoreConfig, AskarOpenStore
+# import traceback
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ class AskarAnoncredsProfile(Profile):
         opened: AskarOpenStore,
         context: InjectionContext = None,
         *,
-        profile_id: str = None
+        profile_id: str = None,
     ):
         """Create a new AskarProfile instance."""
         super().__init__(context=context, name=opened.name, created=opened.created)
@@ -96,9 +95,7 @@ class AskarAnoncredsProfile(Profile):
 
         injector.bind_provider(
             BaseStorageSearch,
-            ClassProvider(
-                "aries_cloudagent.storage.askar.AskarStorageSearch", ref(self)
-            ),
+            ClassProvider("aries_cloudagent.storage.askar.AskarStorageSearch", ref(self)),
         )
         injector.bind_provider(
             VCHolder,
@@ -162,9 +159,7 @@ class AskarAnoncredsProfile(Profile):
                 BaseLedger, ClassProvider(IndyVdrLedger, self.ledger_pool, ref(self))
             )
 
-    def session(
-        self, context: InjectionContext = None
-    ) -> "AskarAnoncredsProfileSession":
+    def session(self, context: InjectionContext = None) -> "AskarAnoncredsProfileSession":
         """Start a new interactive session with no transaction support requested."""
         return AskarAnoncredsProfileSession(self, False, context=context)
 
@@ -194,7 +189,7 @@ class AskarAnoncredsProfileSession(ProfileSession):
         is_txn: bool,
         *,
         context: InjectionContext = None,
-        settings: Mapping[str, Any] = None
+        settings: Mapping[str, Any] = None,
     ):
         """Create a new AskarAnoncredsProfileSession instance."""
         super().__init__(profile=profile, context=context, settings=settings)
@@ -202,6 +197,7 @@ class AskarAnoncredsProfileSession(ProfileSession):
             self._opener = self.profile.store.transaction(profile.profile_id)
         else:
             self._opener = self.profile.store.session(profile.profile_id)
+        self._profile = profile
         self._handle: Session = None
         self._acquire_start: float = None
         self._acquire_end: float = None
@@ -214,7 +210,7 @@ class AskarAnoncredsProfileSession(ProfileSession):
     @property
     def store(self) -> Store:
         """Accessor for the Store instance."""
-        return self._handle and self._handle.store
+        return self._profile and self._profile.store
 
     @property
     def is_transaction(self) -> bool:

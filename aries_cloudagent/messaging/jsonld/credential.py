@@ -7,7 +7,6 @@ from ...vc.ld_proofs import DocumentLoader
 from ...wallet.base import BaseWallet
 from ...wallet.key_type import ED25519
 from ...wallet.util import b64_to_bytes, b64_to_str, bytes_to_b64, str_to_b64
-
 from .create_verify_data import create_verify_data
 from .error import BadJWSHeaderError
 
@@ -57,13 +56,11 @@ def verify_jws_header(header):
     """Check header requirements."""
 
     if header != {"alg": "EdDSA", "b64": False, "crit": ["b64"]}:
-        raise BadJWSHeaderError(
-            "Invalid JWS header parameters for Ed25519Signature2018."
-        )
+        raise BadJWSHeaderError("Invalid JWS header parameters for Ed25519Signature2018.")
 
 
 async def jws_verify(session, verify_data, signature, public_key):
-    """Detatched jws verify handling."""
+    """Detached jws verify handling."""
 
     encoded_header, _, encoded_signature = signature.partition("..")
     decoded_header = json.loads(b64decode(encoded_header))

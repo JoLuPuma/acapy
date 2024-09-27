@@ -6,17 +6,14 @@ from typing import Mapping, Tuple
 
 from marshmallow import RAISE
 
-from ......anoncreds.revocation import AnonCredsRevocation
-
-from ......anoncreds.registry import AnonCredsRegistry
 from ......anoncreds.holder import AnonCredsHolder, AnonCredsHolderError
-from ......anoncreds.issuer import (
-    AnonCredsIssuer,
-)
+from ......anoncreds.issuer import AnonCredsIssuer
+from ......anoncreds.registry import AnonCredsRegistry
+from ......anoncreds.revocation import AnonCredsRevocation
+from ......cache.base import BaseCache
 from ......indy.models.cred import IndyCredentialSchema
 from ......indy.models.cred_abstract import IndyCredAbstractSchema
 from ......indy.models.cred_request import IndyCredRequestSchema
-from ......cache.base import BaseCache
 from ......ledger.base import BaseLedger
 from ......ledger.multiple_ledger.ledger_requests_executor import (
     GET_CRED_DEF,
@@ -67,7 +64,7 @@ class AnonCredsCredFormatHandler(V20CredFormatHandler):
             message_type (str): The message type to validate the attachment data for.
                 Should be one of the message types as defined in message_types.py
             attachment_data (Mapping): [description]
-                The attachment data to valide
+                The attachment data to validate
 
         Raises:
             Exception: When the data is not valid.
@@ -90,10 +87,8 @@ class AnonCredsCredFormatHandler(V20CredFormatHandler):
         """Retrieve credential exchange detail record by cred_ex_id."""
 
         async with self.profile.session() as session:
-            records = (
-                await AnonCredsCredFormatHandler.format.detail.query_by_cred_ex_id(
-                    session, cred_ex_id
-                )
+            records = await AnonCredsCredFormatHandler.format.detail.query_by_cred_ex_id(
+                session, cred_ex_id
             )
 
         if len(records) > 1:
@@ -328,9 +323,7 @@ class AnonCredsCredFormatHandler(V20CredFormatHandler):
         cred_request = cred_ex_record.cred_request.attachment(
             AnonCredsCredFormatHandler.format
         )
-        cred_values = cred_ex_record.cred_offer.credential_preview.attr_dict(
-            decode=False
-        )
+        cred_values = cred_ex_record.cred_offer.credential_preview.attr_dict(decode=False)
 
         issuer = AnonCredsIssuer(self.profile)
         cred_def_id = cred_offer["cred_def_id"]

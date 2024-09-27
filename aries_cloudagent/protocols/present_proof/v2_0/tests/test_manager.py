@@ -1,11 +1,10 @@
-from copy import deepcopy
 import json
+from copy import deepcopy
 from time import time
 from unittest import IsolatedAsyncioTestCase
 
 from aries_cloudagent.tests import mock
 
-from .. import manager as test_module
 from .....core.in_memory import InMemoryProfile
 from .....indy.holder import IndyHolder
 from .....indy.models.pres_preview import (
@@ -29,11 +28,10 @@ from .....vc.tests.document_loader import custom_document_loader
 from .....vc.vc_ld.manager import VcLdpManager
 from .....vc.vc_ld.validation_result import PresentationVerificationResult
 from ...indy import pres_exch_handler as test_indy_util_module
+from .. import manager as test_module
 from ..formats.dif.handler import DIFPresFormatHandler
-from ..formats.dif.tests.test_handler import (
-    DIF_PRES,
-    DIF_PRES_REQUEST_B as DIF_PRES_REQ,
-)
+from ..formats.dif.tests.test_handler import DIF_PRES
+from ..formats.dif.tests.test_handler import DIF_PRES_REQUEST_B as DIF_PRES_REQ
 from ..formats.handler import V20PresFormatHandlerError
 from ..formats.indy import handler as test_indy_handler
 from ..manager import V20PresManager, V20PresManagerError
@@ -475,9 +473,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
 
         Verifier = mock.MagicMock(IndyVerifier, autospec=True)
         self.verifier = Verifier()
-        self.verifier.verify_presentation = mock.CoroutineMock(
-            return_value=("true", [])
-        )
+        self.verifier.verify_presentation = mock.CoroutineMock(return_value=("true", []))
         injector.bind_instance(IndyVerifier, self.verifier)
 
         self.manager = V20PresManager(self.profile)
@@ -1357,9 +1353,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     format_=ATTACHMENT_FORMAT[PRES_20][V20PresFormat.Format.INDY.api],
                 )
             ],
-            presentations_attach=[
-                AttachDecorator.data_base64(INDY_PROOF, ident="indy")
-            ],
+            presentations_attach=[AttachDecorator.data_base64(INDY_PROOF, ident="indy")],
         )
         pres.assign_thread_id("thread-id")
 
@@ -1409,9 +1403,9 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
             ],
         )
         indy_proof_req = deepcopy(INDY_PROOF_REQ_NAME)
-        indy_proof_req["requested_predicates"]["0_highscore_GE_uuid"]["restrictions"][
-            0
-        ]["attr::player::value"] = "impostor"
+        indy_proof_req["requested_predicates"]["0_highscore_GE_uuid"]["restrictions"][0][
+            "attr::player::value"
+        ] = "impostor"
         pres_request = V20PresRequest(
             formats=[
                 V20PresFormat(
@@ -1432,9 +1426,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     format_=ATTACHMENT_FORMAT[PRES_20][V20PresFormat.Format.INDY.api],
                 )
             ],
-            presentations_attach=[
-                AttachDecorator.data_base64(INDY_PROOF, ident="indy")
-            ],
+            presentations_attach=[AttachDecorator.data_base64(INDY_PROOF, ident="indy")],
         )
         pres.assign_thread_id("thread-id")
 
@@ -1516,9 +1508,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     format_=ATTACHMENT_FORMAT[PRES_20][V20PresFormat.Format.INDY.api],
                 )
             ],
-            presentations_attach=[
-                AttachDecorator.data_base64(INDY_PROOF, ident="indy")
-            ],
+            presentations_attach=[AttachDecorator.data_base64(INDY_PROOF, ident="indy")],
         )
         pres.assign_thread_id("thread-id")
 
@@ -1629,9 +1619,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
     async def test_receive_pres_bait_and_switch_attr_name(self):
         connection_record = mock.MagicMock(connection_id=CONN_ID)
         indy_proof_req = deepcopy(INDY_PROOF_REQ_NAME)
-        indy_proof_req["requested_attributes"]["0_screencapture_uuid"]["restrictions"][
-            0
-        ][
+        indy_proof_req["requested_attributes"]["0_screencapture_uuid"]["restrictions"][0][
             "attr::screenCapture::value"
         ] = "c2NyZWVuIGNhcHR1cmUgc2hvd2luZyBzY29yZSBpbiB0aGUgbWlsbGlvbnM="
         pres_proposal = V20PresProposal(
@@ -1667,9 +1655,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     format_=ATTACHMENT_FORMAT[PRES_20][V20PresFormat.Format.INDY.api],
                 )
             ],
-            presentations_attach=[
-                AttachDecorator.data_base64(INDY_PROOF, ident="indy")
-            ],
+            presentations_attach=[AttachDecorator.data_base64(INDY_PROOF, ident="indy")],
         )
         px_rec_dummy = V20PresExRecord(
             pres_proposal=pres_proposal.serialize(),
@@ -1684,9 +1670,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
             retrieve_ex.return_value = px_rec_dummy
             with self.assertRaises(V20PresFormatHandlerError) as context:
                 await self.manager.receive_pres(pres_x, connection_record, None)
-            assert "does not satisfy proof request restrictions" in str(
-                context.exception
-            )
+            assert "does not satisfy proof request restrictions" in str(context.exception)
 
         indy_proof_req["requested_attributes"]["shenanigans"] = indy_proof_req[
             "requested_attributes"
@@ -1700,9 +1684,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     ],
                 )
             ],
-            proposals_attach=[
-                AttachDecorator.data_base64(indy_proof_req, ident="indy")
-            ],
+            proposals_attach=[AttachDecorator.data_base64(indy_proof_req, ident="indy")],
         )
         pres_request = V20PresRequest(
             formats=[
@@ -1722,9 +1704,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     format_=ATTACHMENT_FORMAT[PRES_20][V20PresFormat.Format.INDY.api],
                 )
             ],
-            presentations_attach=[
-                AttachDecorator.data_base64(INDY_PROOF, ident="indy")
-            ],
+            presentations_attach=[AttachDecorator.data_base64(INDY_PROOF, ident="indy")],
         )
 
         px_rec_dummy = V20PresExRecord(
@@ -1757,9 +1737,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     ],
                 )
             ],
-            proposals_attach=[
-                AttachDecorator.data_base64(indy_proof_req, ident="indy")
-            ],
+            proposals_attach=[AttachDecorator.data_base64(indy_proof_req, ident="indy")],
         )
         pres_request = V20PresRequest(
             formats=[
@@ -1815,9 +1793,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     ],
                 )
             ],
-            proposals_attach=[
-                AttachDecorator.data_base64(indy_proof_req, ident="indy")
-            ],
+            proposals_attach=[AttachDecorator.data_base64(indy_proof_req, ident="indy")],
         )
         pres_request = V20PresRequest(
             formats=[
@@ -1894,9 +1870,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     format_=ATTACHMENT_FORMAT[PRES_20][V20PresFormat.Format.INDY.api],
                 )
             ],
-            presentations_attach=[
-                AttachDecorator.data_base64(INDY_PROOF, ident="indy")
-            ],
+            presentations_attach=[AttachDecorator.data_base64(INDY_PROOF, ident="indy")],
         )
 
         px_rec_dummy = V20PresExRecord(
@@ -1930,9 +1904,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     ],
                 )
             ],
-            proposals_attach=[
-                AttachDecorator.data_base64(indy_proof_req, ident="indy")
-            ],
+            proposals_attach=[AttachDecorator.data_base64(indy_proof_req, ident="indy")],
         )
         pres_request = V20PresRequest(
             formats=[
@@ -1952,9 +1924,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     format_=ATTACHMENT_FORMAT[PRES_20][V20PresFormat.Format.INDY.api],
                 )
             ],
-            presentations_attach=[
-                AttachDecorator.data_base64(INDY_PROOF, ident="indy")
-            ],
+            presentations_attach=[AttachDecorator.data_base64(INDY_PROOF, ident="indy")],
         )
 
         px_rec_dummy = V20PresExRecord(
@@ -1988,9 +1958,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     ],
                 )
             ],
-            proposals_attach=[
-                AttachDecorator.data_base64(indy_proof_req, ident="indy")
-            ],
+            proposals_attach=[AttachDecorator.data_base64(indy_proof_req, ident="indy")],
         )
         pres_request = V20PresRequest(
             formats=[
@@ -2010,9 +1978,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     format_=ATTACHMENT_FORMAT[PRES_20][V20PresFormat.Format.INDY.api],
                 )
             ],
-            presentations_attach=[
-                AttachDecorator.data_base64(INDY_PROOF, ident="indy")
-            ],
+            presentations_attach=[AttachDecorator.data_base64(INDY_PROOF, ident="indy")],
         )
 
         px_rec_dummy = V20PresExRecord(
@@ -2046,9 +2012,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     ],
                 )
             ],
-            proposals_attach=[
-                AttachDecorator.data_base64(indy_proof_req, ident="indy")
-            ],
+            proposals_attach=[AttachDecorator.data_base64(indy_proof_req, ident="indy")],
         )
         pres_request = V20PresRequest(
             formats=[
@@ -2068,9 +2032,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     format_=ATTACHMENT_FORMAT[PRES_20][V20PresFormat.Format.INDY.api],
                 )
             ],
-            presentations_attach=[
-                AttachDecorator.data_base64(INDY_PROOF, ident="indy")
-            ],
+            presentations_attach=[AttachDecorator.data_base64(INDY_PROOF, ident="indy")],
         )
 
         px_rec_dummy = V20PresExRecord(
@@ -2112,9 +2074,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
                     format_=ATTACHMENT_FORMAT[PRES_20][V20PresFormat.Format.INDY.api],
                 )
             ],
-            presentations_attach=[
-                AttachDecorator.data_base64(INDY_PROOF, ident="indy")
-            ],
+            presentations_attach=[AttachDecorator.data_base64(INDY_PROOF, ident="indy")],
         )
         px_rec_in = V20PresExRecord(
             pres_request=pres_request,
@@ -2209,9 +2169,7 @@ class TestV20PresManager(IsolatedAsyncioTestCase):
             mock.CoroutineMock(
                 return_value=PresentationVerificationResult(verified=True)
             ),
-        ), mock.patch.object(
-            V20PresExRecord, "save", autospec=True
-        ) as save_ex:
+        ), mock.patch.object(V20PresExRecord, "save", autospec=True) as save_ex:
             px_rec_out = await self.manager.verify_pres(px_rec_in)
             save_ex.assert_called_once()
             assert px_rec_out.state == (V20PresExRecord.STATE_DONE)

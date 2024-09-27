@@ -1,8 +1,8 @@
 import json
-
 from unittest import IsolatedAsyncioTestCase
-from aries_cloudagent.tests import mock
 from unittest.mock import ANY
+
+from aries_cloudagent.tests import mock
 
 from ...connections.models.conn_record import ConnRecord
 from ...messaging.decorators.attach_decorator import AttachDecorator
@@ -31,11 +31,11 @@ class TestOobProcessor(IsolatedAsyncioTestCase):
         self.oob_record = mock.MagicMock(
             connection_id="a-connection-id",
             attach_thread_id="the-thid",
-            their_service={
-                "recipientKeys": ["9WCgWKUaAJj3VWxxtzvvMQN3AoFxoBtBDo9ntwJnVVCC"],
-                "routingKeys": ["6QSduYdf8Bi6t8PfNm5vNomGWDtXhmMmTRzaciudBXYJ"],
-                "serviceEndpoint": "http://their-service-endpoint.com",
-            },
+            their_service=ServiceDecorator(
+                recipient_keys=["9WCgWKUaAJj3VWxxtzvvMQN3AoFxoBtBDo9ntwJnVVCC"],
+                routing_keys=["6QSduYdf8Bi6t8PfNm5vNomGWDtXhmMmTRzaciudBXYJ"],
+                endpoint="http://their-service-endpoint.com",
+            ),
             emit_event=mock.CoroutineMock(),
             delete_record=mock.CoroutineMock(),
             save=mock.CoroutineMock(),
@@ -59,9 +59,7 @@ class TestOobProcessor(IsolatedAsyncioTestCase):
             "retrieve_by_tag_filter",
             mock.CoroutineMock(return_value=mock_oob),
         ) as mock_retrieve_oob:
-            await self.oob_processor.clean_finished_oob_record(
-                self.profile, test_message
-            )
+            await self.oob_processor.clean_finished_oob_record(self.profile, test_message)
 
             assert mock_oob.state == OobRecord.STATE_DONE
             mock_oob.emit_event.assert_called_once()
@@ -87,11 +85,9 @@ class TestOobProcessor(IsolatedAsyncioTestCase):
             "retrieve_by_tag_filter",
             mock.CoroutineMock(return_value=mock_oob),
         ) as mock_retrieve_oob:
-            await self.oob_processor.clean_finished_oob_record(
-                self.profile, test_message
-            )
+            await self.oob_processor.clean_finished_oob_record(self.profile, test_message)
 
-            mock_oob.emit_event.assert_not_called()
+            mock_oob.emit_event.assert_called_once()
             mock_oob.delete_record.assert_not_called()
 
             mock_retrieve_oob.assert_called_once_with(
@@ -109,9 +105,7 @@ class TestOobProcessor(IsolatedAsyncioTestCase):
         ) as mock_retrieve_oob:
             mock_retrieve_oob.side_effect = (StorageNotFoundError(),)
 
-            await self.oob_processor.clean_finished_oob_record(
-                self.profile, test_message
-            )
+            await self.oob_processor.clean_finished_oob_record(self.profile, test_message)
 
     async def test_find_oob_target_for_outbound_message(self):
         mock_oob = mock.MagicMock(
@@ -121,16 +115,16 @@ class TestOobProcessor(IsolatedAsyncioTestCase):
             invitation=mock.MagicMock(requests_attach=[]),
             invi_msg_id="the-pthid",
             our_recipient_key="3Dn1SJNPaCXcvvJvSbsFWP2xaCjMom3can8CQNhWrTRx",
-            their_service={
-                "recipientKeys": ["9WCgWKUaAJj3VWxxtzvvMQN3AoFxoBtBDo9ntwJnVVCC"],
-                "serviceEndpoint": "http://their-service-endpoint.com",
-                "routingKeys": ["6QSduYdf8Bi6t8PfNm5vNomGWDtXhmMmTRzaciudBXYJ"],
-            },
-            our_service={
-                "recipientKeys": ["3Dn1SJNPaCXcvvJvSbsFWP2xaCjMom3can8CQNhWrTRx"],
-                "serviceEndpoint": "http://our-service-endpoint.com",
-                "routingKeys": [],
-            },
+            their_service=ServiceDecorator(
+                recipient_keys=["9WCgWKUaAJj3VWxxtzvvMQN3AoFxoBtBDo9ntwJnVVCC"],
+                endpoint="http://their-service-endpoint.com",
+                routing_keys=["6QSduYdf8Bi6t8PfNm5vNomGWDtXhmMmTRzaciudBXYJ"],
+            ),
+            our_service=ServiceDecorator(
+                recipient_keys=["3Dn1SJNPaCXcvvJvSbsFWP2xaCjMom3can8CQNhWrTRx"],
+                endpoint="http://our-service-endpoint.com",
+                routing_keys=[],
+            ),
         )
 
         message = json.dumps({"~thread": {"thid": "the-thid"}})
@@ -150,9 +144,7 @@ class TestOobProcessor(IsolatedAsyncioTestCase):
             assert target.recipient_keys == [
                 "9WCgWKUaAJj3VWxxtzvvMQN3AoFxoBtBDo9ntwJnVVCC"
             ]
-            assert target.routing_keys == [
-                "6QSduYdf8Bi6t8PfNm5vNomGWDtXhmMmTRzaciudBXYJ"
-            ]
+            assert target.routing_keys == ["6QSduYdf8Bi6t8PfNm5vNomGWDtXhmMmTRzaciudBXYJ"]
             assert target.sender_key == "3Dn1SJNPaCXcvvJvSbsFWP2xaCjMom3can8CQNhWrTRx"
 
             payload = json.loads(outbound.payload)
@@ -196,16 +188,16 @@ class TestOobProcessor(IsolatedAsyncioTestCase):
             invitation=mock.MagicMock(requests_attach=[]),
             invi_msg_id="the-pthid",
             our_recipient_key="3Dn1SJNPaCXcvvJvSbsFWP2xaCjMom3can8CQNhWrTRx",
-            their_service={
-                "recipientKeys": ["9WCgWKUaAJj3VWxxtzvvMQN3AoFxoBtBDo9ntwJnVVCC"],
-                "serviceEndpoint": "http://their-service-endpoint.com",
-                "routingKeys": ["6QSduYdf8Bi6t8PfNm5vNomGWDtXhmMmTRzaciudBXYJ"],
-            },
-            our_service={
-                "recipientKeys": ["3Dn1SJNPaCXcvvJvSbsFWP2xaCjMom3can8CQNhWrTRx"],
-                "serviceEndpoint": "http://our-service-endpoint.com",
-                "routingKeys": [],
-            },
+            their_service=ServiceDecorator(
+                recipient_keys=["9WCgWKUaAJj3VWxxtzvvMQN3AoFxoBtBDo9ntwJnVVCC"],
+                endpoint="http://their-service-endpoint.com",
+                routing_keys=["6QSduYdf8Bi6t8PfNm5vNomGWDtXhmMmTRzaciudBXYJ"],
+            ),
+            our_service=ServiceDecorator(
+                recipient_keys=["3Dn1SJNPaCXcvvJvSbsFWP2xaCjMom3can8CQNhWrTRx"],
+                endpoint="http://our-service-endpoint.com",
+                routing_keys=[],
+            ),
         )
 
         with mock.patch.object(
@@ -303,7 +295,7 @@ class TestOobProcessor(IsolatedAsyncioTestCase):
             self.context.message_receipt = MessageReceipt(
                 thread_id="the-thid",
                 recipient_verkey="our-recipient-key",
-                sender_verkey=self.oob_record.their_service["recipientKeys"][0],
+                sender_verkey=self.oob_record.their_service.recipient_keys[0],
             )
 
             assert await self.oob_processor.find_oob_record_for_inbound_message(
@@ -728,7 +720,7 @@ class TestOobProcessor(IsolatedAsyncioTestCase):
         )
 
         assert oob_record.attach_thread_id == "4a580490-a9d8-44f5-a3f6-14e0b8a219b0"
-        assert oob_record.their_service == {
+        assert oob_record.their_service.serialize() == {
             "serviceEndpoint": "http://their-service-endpoint.com",
             "recipientKeys": ["9WCgWKUaAJj3VWxxtzvvMQN3AoFxoBtBDo9ntwJnVVCC"],
             "routingKeys": ["6QSduYdf8Bi6t8PfNm5vNomGWDtXhmMmTRzaciudBXYJ"],
